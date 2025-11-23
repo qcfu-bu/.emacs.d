@@ -744,7 +744,7 @@
 (use-package cc
   :init
   (setq c-default-style "k&r")
-  (setq-default c-basic-offset 4)
+  (setq-default c-basic-offset 2)
   :hook
   (c-mode . eglot-ensure)
   (c++-mode . eglot-ensure))
