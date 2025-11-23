@@ -482,6 +482,21 @@
                                            :cargo ( :buildScripts (:enable t)
                                                     :features "all"))))))
 
+;;;; copilot
+(use-package copilot
+  :straight t
+  :hook ((prog-mode text-mode) . copilot-mode)
+  :bind (:map copilot-completion-map
+              ("<tab>" . 'copilot-accept-completion)
+              ("C-<tab>" . 'copilot-accept-completion-by-word)
+              ("C-n" . 'copilot-next-completion)
+              ("C-p" . 'copilot-previous-completion))
+  :init (setq copilot-indent-offset-warning-disable t)
+  :config
+  (add-to-list 'copilot-indentation-alist '(prog-mode 2))
+  (add-to-list 'copilot-indentation-alist '(org-mode 2))
+  (add-to-list 'copilot-indentation-alist '(text-mode 2)))
+
 ;;;; dired
 (use-package dired
   :hook (dired-mode . dired-omit-mode)
@@ -602,9 +617,9 @@
         TeX-command-extra-options "-shell-escape"
         TeX-auto-local ".auctex-auto"
         TeX-style-local ".auctex-style"
-        ;; TeX-view-program-list '(("Skim" "/Applications/Skim.app/Contents/SharedSupport/displayline -g -b %n %o %b"))
-        ;; TeX-view-program-selection '((output-pdf "Skim"))
-        TeX-view-program-selection '((output-pdf "PDF Tools"))
+        TeX-view-program-list '(("Skim" "/Applications/Skim.app/Contents/SharedSupport/displayline -g -b %n %o %b"))
+        TeX-view-program-selection '((output-pdf "Skim"))
+        ;; TeX-view-program-selection '((output-pdf "PDF Tools"))
         TeX-source-correlate-mode t
         TeX-source-correlate-method 'synctex
         TeX-electric-math '("$" . "$")
