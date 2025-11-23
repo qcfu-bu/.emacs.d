@@ -65,9 +65,9 @@
 (set-face-attribute 'variable-pitch nil :font "JetBrains Mono-14")
 
 ;;;; theme
-(use-package doom-themes
+(use-package modus-themes
   :straight t
-  :config (load-theme 'doom-one t))
+  :config (load-theme 'modus-operandi t))
 
 ;;;; dim-buffer
 (use-package dimmer
