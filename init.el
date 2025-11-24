@@ -485,6 +485,7 @@
 ;;;; copilot
 (use-package copilot
   :straight t
+  :defer t
   :hook ((prog-mode text-mode) . copilot-mode)
   :bind (:map copilot-completion-map
               ("<tab>" . 'copilot-accept-completion)
