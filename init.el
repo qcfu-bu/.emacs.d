@@ -343,8 +343,7 @@
 (use-package popper
   :straight t
   :config
-  (setq popper-mode-line nil
-        popper-window-height 20)
+  (setq popper-window-height 20)
   (setq popper-reference-buffers
         '("\\*Messages\\*"
           "\\*Warnings\\*"
@@ -361,6 +360,10 @@
           "^\\*Python\\*$"))
   (popper-mode 1)
   (popper-echo-mode 1))
+
+;;;; transpose-frame
+(use-package transpose-frame
+  :straight t)
 
 ;;;; tab-bar
 (use-package tab-bar
@@ -453,6 +456,11 @@
 (use-package gitignore-templates
   :straight t
   :defer t)
+
+;;;; eldoc
+(use-package eldoc
+  :config
+  (setq eldoc-display-functions '(eldoc-display-in-buffer)))
 
 ;;;; eglot
 (use-package eglot
@@ -816,6 +824,10 @@
   "hm" 'describe-mode
   "hi" 'describe-input-method
   "hc" 'consult-flymake)
+
+(general-define-key
+ :states '(normal)
+ "K" 'eldoc-doc-buffer)
 
 ;;;;; editor
 (spc-leader-def
