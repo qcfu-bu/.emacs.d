@@ -480,9 +480,7 @@
   :hook ((prog-mode text-mode) . copilot-mode)
   :bind (:map copilot-completion-map
               ("<tab>" . 'copilot-accept-completion)
-              ("C-<tab>" . 'copilot-accept-completion-by-word)
-              ("C-n" . 'copilot-next-completion)
-              ("C-p" . 'copilot-previous-completion))
+              ("C-<tab>" . 'copilot-accept-completion-by-word))
   :init (setq copilot-indent-offset-warning-disable t)
   :config
   (add-to-list 'copilot-indentation-alist '(prog-mode 2))
@@ -696,7 +694,9 @@
    :repo "mekeor/nael"
    :files ("nael/*.el"))
   :defer t
-  :hook (nael-mode . eglot-ensure))
+  :hook
+  (nael-mode . eglot-ensure)
+  (nael-mode . abbrev-mode))
 
 ;;;; why3
 (use-package why3
