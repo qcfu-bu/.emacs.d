@@ -687,15 +687,15 @@
   (setq proof-splash-enable nil
         proof-three-window-mode-policy 'hybrid))
 
-;; ;;;; lean4
-;; (use-package lean4-mode
-;;   :commands lean4-mode
-;;   :straight
-;;   (lean4-mode
-;;    :type git
-;;    :host github
-;;    :repo "leanprover-community/lean4-mode"
-;;    :files ("*.el" "data")))
+;;;; lean4
+(use-package nael
+  :straight
+  (nael
+   :type git
+   :host codeberg
+   :repo "mekeor/nael"
+   :files ("nael/*.el"))
+  :hook (nael-mode . eglot-ensure))
 
 ;;;; why3
 (use-package why3
