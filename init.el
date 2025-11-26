@@ -695,6 +695,7 @@
    :host codeberg
    :repo "mekeor/nael"
    :files ("nael/*.el"))
+  :defer t
   :hook (nael-mode . eglot-ensure))
 
 ;;;; why3
