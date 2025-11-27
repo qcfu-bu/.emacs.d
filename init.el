@@ -78,7 +78,7 @@
 (use-package doom-modeline
   :straight t
   :config
-  (setq doom-modeline-buffer-encoding nil
+  (setq doom-modeline-bar-width nil
         doom-modeline-buffer-file-name-style 'buffer-name
         doom-modeline-check-simple-format t)
   (doom-modeline-mode t))
@@ -261,6 +261,25 @@
   :after evil
   :config
   (evilem-default-keybindings "gs"))
+
+;;;; general
+(use-package general
+  :straight t
+  :after evil
+  :config
+  (general-override-mode 1))
+
+(general-create-definer spc-leader-def
+  :states '(normal treemacs)
+  :keymaps 'override
+  :prefix "SPC")
+
+;;;; which-key
+(use-package which-key
+  :straight t
+  :config
+  (which-key-setup-minibuffer)
+  (which-key-mode))
 
 ;;;; word-wrap
 (use-package adaptive-wrap
@@ -459,6 +478,8 @@
 
 ;;;; eldoc
 (use-package eldoc
+  :general
+  (:states 'normal "K" 'eldoc-doc-buffer)
   :config
   (setq eldoc-display-functions '(eldoc-display-in-buffer)))
 
@@ -786,26 +807,6 @@
   :hook (session-type-mode . prettify-symbols-mode))
 
 ;;; keybinds
-;;;; which-key
-(use-package which-key
-  :straight t
-  :config
-  (which-key-setup-minibuffer)
-  (which-key-mode))
-
-;;;; general
-(use-package general
-  :straight t
-  :after evil
-  :config
-  (general-override-mode 1))
-
-;;;; global
-(general-create-definer spc-leader-def
-  :states '(normal treemacs)
-  :keymaps 'override
-  :prefix "SPC")
-
 ;;;;; core
 (spc-leader-def
   "SPC" 'execute-extended-command
@@ -825,10 +826,6 @@
   "hm" 'describe-mode
   "hi" 'describe-input-method
   "hc" 'consult-flymake)
-
-(general-define-key
- :states '(normal)
- "K" 'eldoc-doc-buffer)
 
 ;;;;; editor
 (spc-leader-def
