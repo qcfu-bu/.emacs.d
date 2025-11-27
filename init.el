@@ -65,9 +65,9 @@
 (set-face-attribute 'variable-pitch nil :font "JetBrains Mono-14")
 
 ;;;; theme
-(use-package modus-themes
+(use-package standard-themes
   :straight t
-  :config (load-theme 'modus-operandi t))
+  :config (load-theme 'standard-light t))
 
 ;;;; dim-buffer
 (use-package dimmer
@@ -388,6 +388,7 @@
           "^\\*eldoc.\*"
           "^\\*xref\\*$"
           "^\\*Org Select\\*$"
+          "^\\*TeX Help\\*$"
           compilation-mode
           "^\\*vterm\\*" vterm-mode
           "^\\*utop\\*$"
