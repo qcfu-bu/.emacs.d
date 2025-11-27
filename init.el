@@ -704,7 +704,8 @@
   :defer t
   :hook
   (nael-mode . eglot-ensure)
-  (nael-mode . abbrev-mode))
+  (nael-mode . abbrev-mode)
+  (nael-mode . (lambda () (copilot-mode -1))))
 
 ;;;; why3
 (use-package why3
