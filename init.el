@@ -331,6 +331,23 @@
   :after ibuffer
   :hook (ibuffer-mode . nerd-icons-ibuffer-mode))
 
+;;;; dired
+(use-package dired
+  :hook (dired-mode . dired-omit-mode)
+  :config
+  (setq dired-omit-files "^\\(?:\\..*\\|.*~\\)$\\|\\.vo\\(?:k\\|s\\)$"
+        dired-listing-switches "-alh"
+        dired-use-ls-dired nil
+        dired-dwim-target t))
+
+(use-package dired-subtree
+  :straight t
+  :after dired)
+
+(use-package diredfl
+  :straight t
+  :hook (dired-mode . diredfl-mode))
+
 ;;;; treemacs
 (use-package treemacs
   :straight t
@@ -476,6 +493,20 @@
   :straight t
   :defer t)
 
+;;;; copilot
+(use-package copilot
+  :straight t
+  :defer t
+  :hook ((prog-mode text-mode) . copilot-mode)
+  :bind (:map copilot-completion-map
+              ("<tab>" . 'copilot-accept-completion)
+              ("C-<tab>" . 'copilot-accept-completion-by-word))
+  :init (setq copilot-indent-offset-warning-disable t)
+  :config
+  (add-to-list 'copilot-indentation-alist '(prog-mode 2))
+  (add-to-list 'copilot-indentation-alist '(org-mode 2))
+  (add-to-list 'copilot-indentation-alist '(text-mode 2)))
+
 ;;;; eldoc
 (use-package eldoc
   :general
@@ -501,37 +532,6 @@
                                          ( :procMacro (:enable t)
                                            :cargo ( :buildScripts (:enable t)
                                                     :features "all"))))))
-
-;;;; copilot
-(use-package copilot
-  :straight t
-  :defer t
-  :hook ((prog-mode text-mode) . copilot-mode)
-  :bind (:map copilot-completion-map
-              ("<tab>" . 'copilot-accept-completion)
-              ("C-<tab>" . 'copilot-accept-completion-by-word))
-  :init (setq copilot-indent-offset-warning-disable t)
-  :config
-  (add-to-list 'copilot-indentation-alist '(prog-mode 2))
-  (add-to-list 'copilot-indentation-alist '(org-mode 2))
-  (add-to-list 'copilot-indentation-alist '(text-mode 2)))
-
-;;;; dired
-(use-package dired
-  :hook (dired-mode . dired-omit-mode)
-  :config
-  (setq dired-omit-files "^\\(?:\\..*\\|.*~\\)$\\|\\.vo\\(?:k\\|s\\)$"
-        dired-listing-switches "-alh"
-        dired-use-ls-dired nil
-        dired-dwim-target t))
-
-(use-package dired-subtree
-  :straight t
-  :after dired)
-
-(use-package diredfl
-  :straight t
-  :hook (dired-mode . diredfl-mode))
 
 ;;;; compile
 (use-package compile
