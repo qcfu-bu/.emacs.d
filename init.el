@@ -869,7 +869,8 @@
   "wl" 'evil-window-right
   "wp" 'evil-window-prev
   "wn" 'evil-window-next
-  "wd" 'evil-window-delete)
+  "wd" 'evil-window-delete
+  "wt" 'transpose-frame)
 
 ;;;;; frames
 (spc-leader-def
