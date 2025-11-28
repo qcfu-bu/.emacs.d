@@ -383,6 +383,7 @@
   (setq popper-reference-buffers
         '("\\*Messages\\*"
           "\\*Warnings\\*"
+          "\\*grep\\*"
           "Output\\*$"
           "\\*Async Shell Command\\*"
           "^\\*eldoc.\*"
@@ -788,6 +789,15 @@
   (c-mode . eglot-ensure)
   (c++-mode . eglot-ensure))
 
+(use-package cmake-integration
+  :straight 
+  (cmake-integration
+   :type git
+   :host github
+   :repo "darcamo/cmake-integration")
+  :defer t
+  :commands (cmake-integration-transient))
+
 ;;;; python
 (use-package python
   :hook (python-mode . eglot-ensure)
@@ -964,6 +974,11 @@
   "c" 'TeX-command-master
   "e" 'TeX-command-run-all
   "v" 'TeX-view)
+
+;;;;; c/c++
+(spc-local-leader-def
+  :keymaps '(c-mode-map c++-mode-map)
+  "t" 'cmake-integration-transient)
 
 ;;;;; coq
 (spc-local-leader-def
