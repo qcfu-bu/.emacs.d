@@ -786,8 +786,8 @@
   (setq c-default-style "k&r")
   (setq-default c-basic-offset 2)
   :hook
-  (c-mode . eglot-ensure)
-  (c++-mode . eglot-ensure))
+  ((c-mode c++-mode) . eglot-ensure)
+  ((c-mode c++-mode) . eglot-format-on-save))
 
 (use-package cmake-integration
   :straight 
