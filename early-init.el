@@ -3,7 +3,8 @@
 (setq package-quickstart nil)
 
 ;; Prevent the glimpse of un-styled Emacs by disabling these UI elements early.
-(push '(tool-bar-lines . 0) default-frame-alist)
+(push '(menu-bar-lines . 0)   default-frame-alist)
+(push '(tool-bar-lines . 0)   default-frame-alist)
 (push '(vertical-scroll-bars) default-frame-alist)
 
 ;; Resizing the Emacs frame can be a terribly expensive part of changing the
@@ -12,8 +13,9 @@
 (setq frame-inhibit-implied-resize t)
 
 ;; Disable GUI elements
-(tool-bar-mode -1)
-(scroll-bar-mode -1)
+(setq menu-bar-mode nil
+      tool-bar-mode nil
+      scroll-bar-mode nil)
 (setq inhibit-splash-screen t)
 (setq use-file-dialog nil)
 (setq ring-bell-function 'ignore)
