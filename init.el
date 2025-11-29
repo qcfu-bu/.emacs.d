@@ -32,12 +32,12 @@
         gcmh-high-cons-threshold (* 128 1024 1024)))
 
 ;;;; path
-(use-package exec-path-from-shell
-  :straight t
-  :config
-  (when (eq system-type 'darwin)
-    (setq exec-path-from-shell-arguments nil)
-    (exec-path-from-shell-initialize)))
+;; (use-package exec-path-from-shell
+;;   :straight t
+;;   :config
+;;   (when (eq system-type 'darwin)
+;;     (setq exec-path-from-shell-arguments nil)
+;;     (exec-path-from-shell-initialize)))
 
 ;;; system
 ;;;; info
@@ -110,6 +110,7 @@
       ;; mouse
       mouse-wheel-scroll-amount '(2 ((shift) . hscroll))
       mouse-wheel-scroll-amount-horizontal 2)
+(pixel-scroll-precision-mode t)
 
 ;;;; files
 (use-package files
@@ -383,6 +384,7 @@
   (setq popper-reference-buffers
         '("\\*Messages\\*"
           "\\*Warnings\\*"
+          "\\*compilation\\*" compilation-mode
           "\\*grep\\*"
           "Output\\*$"
           "\\*Async Shell Command\\*"
@@ -390,7 +392,6 @@
           "^\\*xref\\*$"
           "^\\*Org Select\\*$"
           "^\\*TeX Help\\*$"
-          compilation-mode
           "^\\*vterm\\*" vterm-mode
           "^\\*utop\\*$"
           "^\\*haskell\\*$"
@@ -499,11 +500,15 @@
 (use-package copilot
   :straight t
   :defer t
-  :hook ((prog-mode text-mode) . copilot-mode)
+  :hook (after-init . copilot-setup)
   :bind (:map copilot-completion-map
               ("<tab>" . 'copilot-accept-completion)
               ("C-<tab>" . 'copilot-accept-completion-by-word))
-  :init (setq copilot-indent-offset-warning-disable t)
+  :init
+  (setq copilot-indent-offset-warning-disable t)
+  (defun copilot-setup ()
+    (add-hook 'prog-mode-hook #'copilot-mode)
+    (add-hook 'text-mode-hook #'copilot-mode))
   :config
   (add-to-list 'copilot-indentation-alist '(prog-mode 2))
   (add-to-list 'copilot-indentation-alist '(org-mode 2))
