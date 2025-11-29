@@ -16,7 +16,31 @@
 (setq menu-bar-mode nil
       tool-bar-mode nil
       scroll-bar-mode nil)
-(setq inhibit-splash-screen t)
-(setq use-file-dialog nil)
+(setq use-file-dialog nil
+      use-dialog-box nil)
 (setq ring-bell-function 'ignore)
-(setq-default frame-title-format "GNU Emacs")
+
+;; Reduce *Message* noise at startup. An empty scratch buffer (or the
+;; dashboard) is more than enough, and faster to display.
+(setq inhibit-startup-screen t
+      inhibit-startup-echo-area-message user-login-name)
+(setq initial-buffer-choice nil
+      inhibit-startup-buffer-menu t
+      inhibit-x-resources t)
+
+;; Remove "For information about GNU Emacs..." message at startup
+(advice-add 'display-startup-echo-area-message :override #'ignore)
+
+;; Suppress the vanilla startup screen completely. We've disabled it with
+;; `inhibit-startup-screen', but it would still initialize anyway.
+(advice-add 'display-startup-screen :override #'ignore)
+
+;; The initial buffer is created during startup even in non-interactive
+;; sessions, and its major mode is fully initialized. Modes like `text-mode',
+;; `org-mode', or even the default `lisp-interaction-mode' load extra packages
+;; and run hooks, which can slow down startup.
+;;
+;; Using `fundamental-mode' for the initial buffer to avoid unnecessary
+;; startup overhead.
+(setq initial-major-mode 'fundamental-mode
+      initial-scratch-message nil)

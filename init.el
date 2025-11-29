@@ -25,11 +25,11 @@
 (setq gc-cons-threshold (* 128 1024 1024))
 (use-package gcmh
   :straight t
-  :hook (after-init . gcmh-mode)
   :config
   (setq gcmh-idle-delay 'auto
         gcmh-auto-idle-delay-factor 10
-        gcmh-high-cons-threshold (* 128 1024 1024)))
+        gcmh-high-cons-threshold (* 128 1024 1024))
+  (gcmh-mode 1))
 
 ;;; system
 ;;;; info
