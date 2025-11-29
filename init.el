@@ -292,7 +292,7 @@
 ;;;; snippets
 (use-package yasnippet
   :straight t
-  :config (yas-global-mode 1))
+  :hook (after-init . yas-global-mode))
 
 ;;;; format
 (use-package reformatter
