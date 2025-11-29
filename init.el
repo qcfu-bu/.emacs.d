@@ -31,14 +31,6 @@
         gcmh-auto-idle-delay-factor 10
         gcmh-high-cons-threshold (* 128 1024 1024)))
 
-;;;; path
-;; (use-package exec-path-from-shell
-;;   :straight t
-;;   :config
-;;   (when (eq system-type 'darwin)
-;;     (setq exec-path-from-shell-arguments nil)
-;;     (exec-path-from-shell-initialize)))
-
 ;;; system
 ;;;; info
 (setq user-full-name "Qiancheng Fu"
@@ -749,13 +741,6 @@
 (use-package haskell-mode
   :straight t
   :hook (haskell-mode . eglot-ensure))
-
-;;;; agda
-(use-package agda2-mode
-  ;; agda-mode locate
-  :load-path "~/.cabal/store/ghc-9.2.5/Agd-2.6.4-a2a1d0b0/share/emacs-mode"
-  :mode ("\\.l?agda\\'" . agda2-mode)
-  :hook ((agda2-mode . (lambda () (activate-input-method "Agda")))))
 
 ;;;; sml
 (use-package sml-mode
