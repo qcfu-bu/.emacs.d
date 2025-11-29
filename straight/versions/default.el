@@ -46,7 +46,6 @@
  ("evil-easymotion" . "f96c2ed38ddc07908db7c3c11bcd6285a3e8c2e9")
  ("evil-escape" . "aebd1a78a6bd33e5164e7552096b3fe1172d3012")
  ("evil-surround" . "da05c60b0621cf33161bb4335153f75ff5c29d91")
- ("exec-path-from-shell" . "7552abf032a383ff761e7d90e6b5cbb4658a728a")
  ("external-completion" . "547b335f9179bcd07b11658d2fd61e3cb02b256e")
  ("f.el" . "931b6d0667fe03e7bf1c6c282d6d8d7006143c52")
  ("flycheck" . "1eafe2911d50c9f58efce81ff8abea59495e1ff3")
