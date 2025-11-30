@@ -80,11 +80,6 @@
   (when (eq system-type 'darwin)
     (ns-auto-titlebar-mode)))
 
-;;;; dim-buffer
-(use-package dimmer
-  :straight t
-  :hook (after-init . dimmer-mode))
-
 ;;;; minibuffer
 (setq minibuffer-prompt-properties
       '(read-only t cursor-intangible t face minibuffer-prompt))
