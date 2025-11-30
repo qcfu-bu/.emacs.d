@@ -22,7 +22,6 @@
 (straight-use-package 'use-package)
 
 ;;;; gc
-(setq gc-cons-threshold (* 128 1024 1024))
 (use-package gcmh
   :straight t
   :config
@@ -30,6 +29,10 @@
         gcmh-auto-idle-delay-factor 10
         gcmh-high-cons-threshold (* 128 1024 1024))
   (gcmh-mode 1))
+
+;;;; server
+(use-package server
+  :config (unless (server-running-p) (server-start)))
 
 ;;; system
 ;;;; info
@@ -61,11 +64,6 @@
   :straight t
   :config (load-theme 'modus-operandi t))
 
-;;;; dim-buffer
-(use-package dimmer
-  :straight t
-  :hook (after-init . dimmer-mode))
-
 ;;;; modeline
 (use-package doom-modeline
   :straight t
@@ -75,9 +73,17 @@
         doom-modeline-check-simple-format t)
   (doom-modeline-mode t))
 
-;;;; server
-(use-package server
-  :config (unless (server-running-p) (server-start)))
+;;;; titlebar
+(use-package ns-auto-titlebar
+  :straight t
+  :config
+  (when (eq system-type 'darwin)
+    (ns-auto-titlebar-mode)))
+
+;;;; dim-buffer
+(use-package dimmer
+  :straight t
+  :hook (after-init . dimmer-mode))
 
 ;;;; minibuffer
 (setq minibuffer-prompt-properties
