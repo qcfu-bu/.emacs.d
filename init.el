@@ -62,7 +62,7 @@
 ;;;; theme
 (use-package modus-themes
   :straight t
-  :config (load-theme 'modus-operandi t))
+  :config (load-theme 'modus-operandi-tinted t))
 
 ;;;; modeline
 (use-package doom-modeline
