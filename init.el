@@ -21,6 +21,11 @@
   (load bootstrap-file nil 'nomessage))
 (straight-use-package 'use-package)
 
+;;;; benchmark
+(use-package benchmark-init
+  :straight t
+  :config (benchmark-init/activate))
+
 ;;;; gc
 (use-package gcmh
   :straight t
@@ -559,12 +564,6 @@
 (use-package restart-emacs
   :straight t
   :defer t)
-
-;;;; profiling
-(use-package esup
-  :straight t
-  :config
-  (setq esup-depth 0))
 
 ;;; term
 ;;;; vterm
