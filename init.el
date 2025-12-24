@@ -66,7 +66,11 @@
 
 ;;;; theme
 (use-package doom-themes
-  :straight t
+  :straight
+  (doom-themes
+   :type git
+   :host github
+   :repo "qcfu-bu/themes")
   :config (load-theme 'doom-deep-atom t))
 
 (use-package modus-themes
