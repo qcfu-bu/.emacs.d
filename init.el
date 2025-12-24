@@ -166,8 +166,10 @@
   :defer t
   :after vertico
   :config
+  (add-to-list 'consult-buffer-filter "^\\*")
   (setq consult-preview-key nil)
-  (add-to-list 'consult-buffer-filter "^\\*"))
+  (setq xref-show-xrefs-function #'consult-xref
+        xref-show-definitions-function #'consult-xref))
 
 (use-package marginalia
   :straight t
@@ -399,6 +401,7 @@
           "^\\*TeX Help\\*$"
           "^\\*vterm\\*" vterm-mode
           "^\\*utop\\*$"
+          "^\\*cargo-test\\*$"
           "^\\*haskell\\*$"
           "^\\*poly\\*$"
           "^\\*Python\\*$"))
@@ -776,7 +779,8 @@
   :straight t
   :defer t
   :config
-  (setq rustic-lsp-client 'eglot))
+  (setq rustic-lsp-client 'eglot
+        rustic-format-on-save t))
 
 ;;;; c/c++
 (use-package cc
@@ -845,7 +849,8 @@
   "ey" 'consult-yank-pop
   "ed" 'eglot-find-declaration
   "ei" 'eglot-find-implementation
-  "et" 'eglot-find-typeDefinition)
+  "et" 'eglot-find-typeDefinition
+  "eb" 'xref-go-back)
 
 ;;;;; compile
 (spc-leader-def
@@ -977,6 +982,13 @@
 (spc-local-leader-def
   :keymaps '(c-mode-map c++-mode-map)
   "t" 'cmake-integration-transient)
+
+;;;;; rust
+(spc-local-leader-def
+  :keymaps 'rustic-mode-map
+  "c" 'rustic-cargo-build
+  "ta" 'rustic-cargo-test
+  "tt" 'rustic-cargo-current-test)
 
 ;;;;; coq
 (spc-local-leader-def
