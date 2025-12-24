@@ -60,9 +60,9 @@
 (setq delete-by-moving-to-trash t)
 
 ;;;; fonts
-(set-face-attribute 'default        nil :font "JetBrains Mono-14")
-(set-face-attribute 'fixed-pitch    nil :font "JetBrains Mono-14")
-(set-face-attribute 'variable-pitch nil :font "JetBrains Mono-14")
+(set-face-attribute 'default        nil :font "JetBrains Mono:pixelsize=14")
+(set-face-attribute 'fixed-pitch    nil :font "JetBrains Mono:pixelsize=14")
+(set-face-attribute 'variable-pitch nil :font "JetBrains Mono:pixelsize=14")
 
 ;;;; theme
 (use-package doom-themes
