@@ -98,7 +98,7 @@
  ("spinner" . "fa117f0893788f3fe24673715a6b83bb34d238dd")
  ("straight.el" . "4b6289f42a4da0c1bae694ba918b43c72daf0330")
  ("tablist" . "fcd37147121fabdf003a70279cf86fbe08cfac6f")
- ("themes" . "7a53101cf8f7cc3615fba4c0d1e9c98777d261fc")
+ ("themes" . "ebe36ab05dae7d57262187d382c0bb6dd165b4b8")
  ("track-changes" . "35edce7e6ddd4b347a01dc5868daf8e98cc330f7")
  ("transient" . "453376f2f1a0beab45da06c84a9e57692afc0607")
  ("transpose-frame" . "94c87794d53883a2358d13da264ad8dab9a52daa")

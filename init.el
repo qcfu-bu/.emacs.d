@@ -71,7 +71,7 @@
    :type git
    :host github
    :repo "qcfu-bu/themes")
-  :config (load-theme 'doom-deep-atom t))
+  :config (load-theme 'doom-atom t))
 
 (use-package modus-themes
   :straight t)
