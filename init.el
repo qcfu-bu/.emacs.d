@@ -826,7 +826,12 @@
 ;;; devops
 ;;;; docker
 (use-package docker
-  :straight t)
+  :straight t
+  :defer t)
+
+(use-package dockerfile-mode
+  :straight t
+  :mode ("Dockerfile\\'" . dockerfile-mode))
 
 ;;; keybinds
 ;;;;; core
