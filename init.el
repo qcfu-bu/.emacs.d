@@ -65,9 +65,12 @@
 (set-face-attribute 'variable-pitch nil :font "JetBrains Mono-14")
 
 ;;;; theme
-(use-package modus-themes
+(use-package doom-themes
   :straight t
-  :config (load-theme 'modus-operandi-tinted t))
+  :config (load-theme 'doom-deep-atom t))
+
+(use-package modus-themes
+  :straight t)
 
 ;;;; modeline
 (use-package doom-modeline
@@ -532,11 +535,12 @@
   (add-to-list 'eglot-server-programs '((tex-mode context-mode texinfo-mode bibtex-mode) . ("texlab")))
   (add-to-list 'eglot-server-programs '((python-mode python-ts-mode) . ("pyright-langserver" "--stdio")))
   (add-to-list 'eglot-server-programs '((c-mode c-ts-mode c++-mode c++-ts-mode objc-mode) . ("clangd")))
-  (add-to-list 'eglot-server-programs '((rust-mode rust-ts-mode) .
-                                        ("rust-analyzer" :initializationOptions
-                                         ( :procMacro (:enable t)
-                                           :cargo ( :buildScripts (:enable t)
-                                                    :features "all"))))))
+  ;; (add-to-list 'eglot-server-programs '((rust-mode rust-ts-mode) .
+  ;;                                       ("rust-analyzer" :initializationOptions
+  ;;                                        ( :procMacro (:enable t)
+  ;;                                          :cargo ( :buildScripts (:enable t)
+  ;;                                                   :features "all")))))
+  )
 
 ;;;; compile
 (use-package compile
@@ -764,11 +768,11 @@
   :hook (ats2-mode . ats2-flymake-setup))
 
 ;;;; rust
-(use-package rust-mode
+(use-package rustic
   :straight t
-  :hook (rust-mode . eglot-ensure)
-  :init
-  (setq rust-format-on-save t))
+  :defer t
+  :config
+  (setq rustic-lsp-client 'eglot))
 
 ;;;; c/c++
 (use-package cc
