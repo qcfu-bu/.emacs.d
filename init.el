@@ -819,6 +819,15 @@
   :demand t
   :hook (session-type-mode . prettify-symbols-mode))
 
+(use-package fy-lang-mode
+  :load-path "~/Projects/fy/editor"
+  :mode ("\\.fy$" . fy-lang-mode))
+
+;;; devops
+;;;; docker
+(use-package docker
+  :straight t)
+
 ;;; keybinds
 ;;;;; core
 (spc-leader-def
