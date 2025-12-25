@@ -504,7 +504,7 @@
   :straight t
   :defer t)
 
-;;;; copilot
+;;;; ai
 (use-package copilot
   :straight t
   :defer t
