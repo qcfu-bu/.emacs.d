@@ -504,7 +504,7 @@
   :straight t
   :defer t)
 
-;;;; ai
+;;;; copilot
 (use-package copilot
   :straight t
   :defer t
@@ -521,6 +521,13 @@
   (add-to-list 'copilot-indentation-alist '(prog-mode 2))
   (add-to-list 'copilot-indentation-alist '(org-mode 2))
   (add-to-list 'copilot-indentation-alist '(text-mode 2)))
+
+;;;; claude
+(use-package claude-code-ide
+  :straight (:type git :host github :repo "manzaltu/claude-code-ide.el")
+  :bind ("C-c C-'" . claude-code-ide-menu) ; Set your favorite keybinding
+  :config
+  (claude-code-ide-emacs-tools-setup)) ; Optionally enable Emacs MCP tools
 
 ;;;; eldoc
 (use-package eldoc
@@ -820,7 +827,7 @@
   :hook (session-type-mode . prettify-symbols-mode))
 
 (use-package fy-lang-mode
-  :load-path "~/Projects/fy/editor"
+  :load-path "~/Projects/fy/editor/emacs/"
   :mode ("\\.fy$" . fy-lang-mode))
 
 ;;; devops
