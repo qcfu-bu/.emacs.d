@@ -399,7 +399,7 @@
           "^\\*xref\\*$"
           "^\\*Org Select\\*$"
           "^\\*TeX Help\\*$"
-          "^\\*vterm\\*" vterm-mode
+          "^\\*vterm\\*"
           "^\\*utop\\*$"
           "^\\*cargo-test\\*$"
           "^\\*haskell\\*$"
@@ -525,9 +525,11 @@
 ;;;; claude
 (use-package claude-code-ide
   :straight (:type git :host github :repo "manzaltu/claude-code-ide.el")
-  :bind ("C-c C-'" . claude-code-ide-menu) ; Set your favorite keybinding
+  :bind
+  (("C-c C-c" . claude-code-ide-menu)
+   ("C-c C-a" . claude-code-ide-insert-at-mentioned))
   :config
-  (claude-code-ide-emacs-tools-setup)) ; Optionally enable Emacs MCP tools
+  (claude-code-ide-emacs-tools-setup))
 
 ;;;; eldoc
 (use-package eldoc
@@ -872,11 +874,6 @@
   "ei" 'eglot-find-implementation
   "et" 'eglot-find-typeDefinition
   "eb" 'xref-go-back)
-
-;;;;; compile
-(spc-leader-def
-  "cc" 'compile
-  "cr" 'recompile)
 
 ;;;;; files
 (spc-leader-def
