@@ -525,9 +525,6 @@
 ;;;; claude
 (use-package claude-code-ide
   :straight (:type git :host github :repo "manzaltu/claude-code-ide.el")
-  :bind
-  (("C-c C-c" . claude-code-ide-menu)
-   ("C-c C-a" . claude-code-ide-insert-at-mentioned))
   :config
   (claude-code-ide-emacs-tools-setup))
 
@@ -968,6 +965,12 @@
 (spc-leader-def
   "gg" 'magit
   "gr" 'consult-git-grep)
+
+;;;;; claude
+(spc-leader-def
+  "cc" 'claude-code-ide-menu
+  "cb" 'claude-code-ide-switch-to-buffer
+  "cw" 'claude-code-ide-toggle-window)
 
 ;;;; local
 (general-create-definer spc-local-leader-def
