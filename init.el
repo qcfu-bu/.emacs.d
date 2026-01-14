@@ -65,11 +65,11 @@
 (set-face-attribute 'variable-pitch nil :font "JetBrains Mono:pixelsize=14")
 
 ;;;; theme
-(use-package doom-themes
-  :straight t
-  :config (load-theme 'doom-one t))
-
 (use-package modus-themes
+  :straight t
+  :config (load-theme 'modus-operandi t))
+
+(use-package doom-themes
   :straight t)
 
 ;;;; modeline
