@@ -66,12 +66,8 @@
 
 ;;;; theme
 (use-package doom-themes
-  :straight
-  (doom-themes
-   :type git
-   :host github
-   :repo "qcfu-bu/themes")
-  :config (load-theme 'doom-atom t))
+  :straight t
+  :config (load-theme 'doom-one t))
 
 (use-package modus-themes
   :straight t)
@@ -790,6 +786,9 @@
   :hook
   ((c-mode c++-mode) . eglot-ensure)
   ((c-mode c++-mode) . eglot-format-on-save))
+
+(use-package cmake-mode
+  :straight t)
 
 (use-package cmake-integration
   :straight 
