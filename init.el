@@ -66,11 +66,11 @@
 
 ;;;; theme
 (use-package modus-themes
-  :straight t
-  :config (load-theme 'modus-operandi t))
+  :straight t)
 
 (use-package doom-themes
-  :straight t)
+  :straight t
+  :config (load-theme 'doom-one t))
 
 ;;;; modeline
 (use-package doom-modeline
@@ -500,7 +500,7 @@
   :straight t
   :defer t)
 
-;;;; copilot
+;;;; llm
 (use-package copilot
   :straight t
   :defer t
@@ -517,6 +517,13 @@
   (add-to-list 'copilot-indentation-alist '(prog-mode 2))
   (add-to-list 'copilot-indentation-alist '(org-mode 2))
   (add-to-list 'copilot-indentation-alist '(text-mode 2)))
+
+;; (use-package claude-code-ide
+;;   :straight
+;;   (claude-code-ide
+;;    :type git
+;;    :host github
+;;    :repo "manzaltu/claude-code-ide.el"))
 
 ;;;; eldoc
 (use-package eldoc
@@ -818,9 +825,9 @@
   :demand t
   :hook (session-type-mode . prettify-symbols-mode))
 
-(use-package fy-lang-mode
-  :load-path "~/Projects/fy/editor/emacs/"
-  :mode ("\\.fy$" . fy-lang-mode))
+(use-package sf-mode
+  :load-path "~/Projects/SF/editor/emacs/"
+  :mode ("\\.sf$" . sf-mode))
 
 ;;; devops
 ;;;; docker
