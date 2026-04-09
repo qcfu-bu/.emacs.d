@@ -70,7 +70,7 @@
 
 (use-package doom-themes
   :straight t
-  :config (load-theme 'doom-one t))
+  :config (load-theme 'modus-operandi t))
 
 ;;;; modeline
 (use-package doom-modeline
@@ -512,7 +512,9 @@
   (setq copilot-indent-offset-warning-disable t)
   (defun copilot-setup ()
     (add-hook 'prog-mode-hook #'copilot-mode)
-    (add-hook 'text-mode-hook #'copilot-mode))
+    (add-hook 'text-mode-hook #'copilot-mode)
+    (add-hook 'prog-mode-hook #'copilot-nes-mode)
+    (add-hook 'text-mode-hook #'copilot-nes-mode))
   :config
   (add-to-list 'copilot-indentation-alist '(prog-mode 2))
   (add-to-list 'copilot-indentation-alist '(org-mode 2))
