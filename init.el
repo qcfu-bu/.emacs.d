@@ -595,16 +595,16 @@
     "Toggle a ghostel terminal in a right side window."
     (interactive)
     (let ((buf (get-buffer "*ghostel*")))
-        (if-let ((win (and buf (get-buffer-window buf))))
-            (delete-window win)
+      (if-let ((win (and buf (get-buffer-window buf))))
+          (delete-window win)
         (unless buf
-            (setq buf (generate-new-buffer "*ghostel*"))
-            (with-current-buffer buf
+          (setq buf (generate-new-buffer "*ghostel*"))
+          (with-current-buffer buf
             (ghostel-mode)
             (let* ((height (window-body-height))
-                    (width (window-max-chars-per-line)))
-                (setq ghostel--term (ghostel--new height width ghostel-max-scrollback))
-                (ghostel--apply-palette ghostel--term))
+                   (width (window-max-chars-per-line)))
+              (setq ghostel--term (ghostel--new height width ghostel-max-scrollback))
+              (ghostel--apply-palette ghostel--term))
             (ghostel--start-process)))
         (select-window (display-buffer buf)))))
   :config
