@@ -238,7 +238,7 @@
   :hook (evil-mode . evil-escape-mode)
   :config
   (setq evil-escape-excluded-states '(normal visual multiedit emacs motion treemacs)
-        evil-escape-excluded-major-modes '(vterm)
+        evil-escape-excluded-major-modes '(ghostel)
         evil-escape-key-sequence "jk"
         evil-escape-delay 0.2))
 
@@ -395,7 +395,7 @@
           "^\\*xref\\*$"
           "^\\*Org Select\\*$"
           "^\\*TeX Help\\*$"
-          "^\\*vterm\\*"
+          "^\\*ghostel\\*"
           "^\\*utop\\*$"
           "^\\*cargo-test\\*$"
           "^\\*haskell\\*$"
@@ -513,8 +513,8 @@
   (defun copilot-setup ()
     (add-hook 'prog-mode-hook #'copilot-mode)
     (add-hook 'text-mode-hook #'copilot-mode)
-    ;; (add-hook 'prog-mode-hook #'copilot-nes-mode)
-    ;; (add-hook 'text-mode-hook #'copilot-nes-mode)
+    (add-hook 'prog-mode-hook #'copilot-nes-mode)
+    (add-hook 'text-mode-hook #'copilot-nes-mode)
     )
   :config
   (add-to-list 'copilot-indentation-alist '(prog-mode 2))
@@ -583,20 +583,33 @@
   :defer t)
 
 ;;; term
-;;;; vterm
-(use-package vterm
+;;;; ghostel
+(use-package ghostel
   :straight t
   :defer t
   :hook
-  (vterm-mode . (lambda () (setq confirm-kill-processes nil)))
+  (ghostel-mode . (lambda () (setq confirm-kill-processes nil)))
+-  :bind ("C-`" . ghostel-toggle)
+  :init
+  (defun ghostel-toggle ()
+    "Toggle a ghostel terminal in a right side window."
+    (interactive)
+    (let ((buf (get-buffer "*ghostel*")))
+        (if-let ((win (and buf (get-buffer-window buf))))
+            (delete-window win)
+        (unless buf
+            (setq buf (generate-new-buffer "*ghostel*"))
+            (with-current-buffer buf
+            (ghostel-mode)
+            (let* ((height (window-body-height))
+                    (width (window-max-chars-per-line)))
+                (setq ghostel--term (ghostel--new height width ghostel-max-scrollback))
+                (ghostel--apply-palette ghostel--term))
+            (ghostel--start-process)))
+        (select-window (display-buffer buf)))))
   :config
-  (setq vterm-kill-buffer-on-exit t
-        vterm-max-scrollback 5000))
-
-(use-package vterm-toggle
-  :straight t
-  :bind ("C-`" . vterm-toggle)
-  :config (setq vterm-toggle-scope 'project))
+  (setq ghostel-kill-buffer-on-exit t
+        ghostel-max-scrollback 5000))
 
 ;;; lang
 ;;;; markdown
