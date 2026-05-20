@@ -589,7 +589,7 @@
   :defer t
   :hook
   (ghostel-mode . (lambda () (setq confirm-kill-processes nil)))
--  :bind ("C-`" . ghostel-toggle)
+  :bind ("C-`" . ghostel-toggle)
   :init
   (defun ghostel-toggle ()
     "Toggle a ghostel terminal in a right side window."
