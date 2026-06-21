@@ -24,7 +24,11 @@
 ;;;; benchmark
 (use-package benchmark-init
   :straight t
-  :config (benchmark-init/activate))
+  :config
+  (benchmark-init/activate)
+  ;; Stop instrumenting `require'/`load' once startup is done so it does not add
+  ;; overhead all session. `M-x benchmark-init/show-durations-tree' still works.
+  (add-hook 'after-init-hook #'benchmark-init/deactivate))
 
 ;;;; gc
 (use-package gcmh
@@ -60,9 +64,11 @@
 (setq delete-by-moving-to-trash t)
 
 ;;;; fonts
-(set-face-attribute 'default        nil :font "JetBrains Mono:pixelsize=14")
-(set-face-attribute 'fixed-pitch    nil :font "JetBrains Mono:pixelsize=14")
-(set-face-attribute 'variable-pitch nil :font "JetBrains Mono:pixelsize=14")
+;; Guard on the font being installed so a fresh machine without "JetBrains Mono"
+;; does not error out during startup (it just falls back to the default font).
+(when (find-font (font-spec :family "JetBrains Mono"))
+  (dolist (face '(default fixed-pitch variable-pitch))
+    (set-face-attribute face nil :font "JetBrains Mono:pixelsize=14")))
 
 ;;;; theme
 (use-package modus-themes
@@ -238,7 +244,7 @@
   :hook (evil-mode . evil-escape-mode)
   :config
   (setq evil-escape-excluded-states '(normal visual multiedit emacs motion treemacs)
-        evil-escape-excluded-major-modes '(ghostel)
+        evil-escape-excluded-major-modes '(ghostel-mode)
         evil-escape-key-sequence "jk"
         evil-escape-delay 0.2))
 
@@ -309,6 +315,18 @@
 (use-package reformatter
   :straight t
   :commands reformatter-define)
+
+;;;; spell
+(use-package flyspell
+  :defer t
+  :init
+  (defun flyspell-mode-maybe ()
+    "Enable `flyspell-mode', but only when a spell-checker is installed.
+Avoids an error on systems without aspell/hunspell/ispell."
+    (when (or (executable-find "aspell")
+              (executable-find "hunspell")
+              (executable-find "ispell"))
+      (flyspell-mode 1))))
 
 ;;; ui
 ;;;; icons
@@ -541,7 +559,10 @@
   :commands (eglot-ensure)
   :init
   (defun eglot-format-on-save ()
-    (add-hook 'before-save-hook 'eglot-format-buffer))
+    ;; Buffer-local (nil t): format only THIS buffer on save.  Without the local
+    ;; flag this lands on the GLOBAL `before-save-hook' and errors when saving
+    ;; any buffer that has no eglot server.
+    (add-hook 'before-save-hook #'eglot-format-buffer nil t))
   :config
   (setq eglot-ignored-server-capabilities '(:inlayHintProvider))
   (advice-add 'eglot-completion-at-point :around #'cape-wrap-buster)
@@ -609,7 +630,7 @@
   :mode ("/README\\(?:\\.md\\)?\\'" . gfm-mode)
   :hook
   ((markdown-mode . visual-line-mode)
-   (markdown-mode . flyspell-mode))
+   (markdown-mode . flyspell-mode-maybe))
   :init
   (setq markdown-enable-math t
         markdown-enable-wiki-links t
@@ -625,7 +646,7 @@
 (use-package org
   :hook
   ((org-mode . visual-line-mode)
-   (org-mode . flyspell-mode)
+   (org-mode . flyspell-mode-maybe)
    (org-mode . (lambda ()
                  (modify-syntax-entry ?< "." org-mode-syntax-table)
                  (modify-syntax-entry ?> "." org-mode-syntax-table))))
@@ -644,7 +665,7 @@
   :hook
   ((LaTeX-mode . eglot-ensure)
    (LaTeX-mode . visual-line-mode)
-   (LaTeX-mode . flyspell-mode)
+   (LaTeX-mode . flyspell-mode-maybe)
    (LaTeX-mode . rainbow-delimiters-mode))
   :init
   (add-hook 'TeX-after-compilation-finished-functions #'TeX-revert-document-buffer)
@@ -746,7 +767,96 @@
   :hook
   (nael-mode . eglot-ensure)
   (nael-mode . abbrev-mode)
-  (nael-mode . (lambda () (copilot-mode -1))))
+  (nael-mode . nael-infoview-setup)
+  (nael-mode . (lambda () (copilot-mode -1)))
+  :config
+  ;; Lean "infoview": nael renders proof goals through ElDoc.  Render them into
+  ;; our own *lean-infoview* buffer (which popper does not match) and lock it to
+  ;; a window on the right, like Proof General's goals panel, so it stays
+  ;; independent of popper and coexists with popups such as the terminal.
+  ;;
+  ;; ElDoc dispatches its display from an async timer where `current-buffer' is
+  ;; not the Lean buffer, which defeats buffer-local hooks and source-buffer
+  ;; routing.  The *selected window*, however, still shows the Lean buffer, so
+  ;; we advise `eldoc-display-in-buffer' (what actually renders the docs) and,
+  ;; whenever the selected window holds a Lean buffer, redirect everything
+  ;; (goals, term goals, hover/expected-type) to the infoview; otherwise the
+  ;; original runs unchanged for other modes.
+  (defconst nael-infoview-buffer-name "*lean-infoview*"
+    "Name of the dedicated Lean infoview buffer.")
+
+  (defun nael-infoview--buffer ()
+    "Return the infoview buffer, creating it in `special-mode' if needed."
+    (let ((buffer (get-buffer-create nael-infoview-buffer-name)))
+      (with-current-buffer buffer
+        (unless (derived-mode-p 'special-mode) (special-mode)))
+      buffer))
+
+  (defun nael-infoview--render (docs)
+    "Render ElDoc DOCS into the infoview buffer; return the buffer.
+Each element of DOCS is a (STRING . PLIST) pair; the strings are already
+fontified by nael."
+    (let ((buffer (nael-infoview--buffer)))
+      (with-current-buffer buffer
+        (let ((inhibit-read-only t))
+          (setq-local nobreak-char-display nil)
+          (erase-buffer)
+          (cl-loop for (item . rest) on docs
+                   do (insert (car item))
+                   when rest do (insert "\n\n"))
+          (goto-char (point-min))))
+      buffer))
+
+  (defun nael-infoview-show ()
+    "Pop up the Lean infoview on the right without changing its contents."
+    (interactive)
+    (display-buffer (nael-infoview--buffer)))
+
+  (defun nael--in-lean-window-p ()
+    "Non-nil when the selected window is showing a Lean buffer."
+    (with-current-buffer (window-buffer (selected-window))
+      (derived-mode-p 'nael-mode)))
+
+  (defun nael-eldoc-display-advice (orig-fn docs &rest args)
+    "Redirect ElDoc rendering to the Lean infoview when editing a Lean buffer.
+ORIG-FN is `eldoc-display-in-buffer'.  ElDoc renders asynchronously, but the
+selected window still shows the Lean buffer at that point, so we key off it:
+when it holds a Lean buffer, render DOCS in the *lean-infoview* side window
+\(re-showing it if hidden); otherwise call ORIG-FN unchanged."
+    (if (nael--in-lean-window-p)
+        (let ((buffer (nael-infoview--render docs)))
+          (unless (get-buffer-window buffer t)
+            (display-buffer buffer)))
+      (apply orig-fn docs args)))
+  (advice-add 'eldoc-display-in-buffer :around #'nael-eldoc-display-advice)
+
+  (defun nael-infoview-setup ()
+    "Pop up the Lean infoview when a Lean buffer is opened."
+    (let ((source (current-buffer)))
+      ;; Defer until after `find-file' has displayed the Lean buffer, so the
+      ;; side window is added to the right of it rather than fighting the
+      ;; in-progress file display.
+      (run-with-timer
+       0 nil
+       (lambda ()
+         (when (and (buffer-live-p source) (get-buffer-window source t))
+           (nael-infoview-show))))))
+
+  (add-to-list 'display-buffer-alist
+               '("\\`\\*lean-infoview\\*\\'"
+                 (display-buffer-in-side-window)
+                 (side . right)
+                 (slot . 0)
+                 (window-width . 0.4)
+                 (preserve-size . (t . nil))
+                 (dedicated . t)
+                 (window-parameters . ((no-delete-other-windows . t)))))
+
+  ;; In Lean buffers, `K' shows our infoview rather than the (now-unused)
+  ;; *eldoc* buffer.
+  (general-define-key
+   :states 'normal :keymaps 'nael-mode-map
+   "K" #'nael-infoview-show))
 
 ;;;; why3
 (use-package why3
@@ -847,6 +957,26 @@
   :mode ("Dockerfile\\'" . dockerfile-mode))
 
 ;;; keybinds
+;;;;; prefixes
+;; which-key group labels for each leader prefix.  `:ignore t' makes general
+;; register only the which-key description without binding the key, so these
+;; never shadow the commands bound under each prefix (verified: `SPC m' stays
+;; unbound here and falls through to the mode-local `SPC m ...' bindings).
+(spc-leader-def
+  "q"   '(:ignore t :which-key "+quit")
+  "h"   '(:ignore t :which-key "+help")
+  "e"   '(:ignore t :which-key "+editor")
+  "f"   '(:ignore t :which-key "+files")
+  "b"   '(:ignore t :which-key "+buffers")
+  "w"   '(:ignore t :which-key "+windows")
+  "F"   '(:ignore t :which-key "+frames")
+  "p"   '(:ignore t :which-key "+projects")
+  "B"   '(:ignore t :which-key "+bookmarks")
+  "TAB" '(:ignore t :which-key "+tabs")
+  "t"   '(:ignore t :which-key "+toggles")
+  "g"   '(:ignore t :which-key "+git")
+  "m"   '(:ignore t :which-key "+local"))
+
 ;;;;; core
 (spc-leader-def
   "SPC" 'execute-extended-command
@@ -930,7 +1060,8 @@
   ;; projects
   "pa" 'treemacs-add-project-to-workspace
   "pd" 'treemacs-remove-project-from-workspace
-  "pr" 'treemacs-rename-project)
+  "pr" 'treemacs-rename-project
+  "p" '(:ignore t :which-key "+project"))
 
 (general-def evil-treemacs-state-map
   ;; unset keys
@@ -940,7 +1071,8 @@
   "wa" 'treemacs-create-workspace
   "wd" 'treemacs-remove-workspace
   "wr" 'treemacs-rename-workspace
-  "we" 'treemacs-edit-workspaces)
+  "we" 'treemacs-edit-workspaces
+  "w" '(:ignore t :which-key "+workspace"))
 
 ;;;;; bookmarks
 (spc-leader-def
@@ -1009,6 +1141,7 @@
 (spc-local-leader-def
   :keymaps 'rustic-mode-map
   "c" 'rustic-cargo-build
+  "t" '(:ignore t :which-key "+test")
   "ta" 'rustic-cargo-test
   "tt" 'rustic-cargo-current-test)
 
@@ -1018,6 +1151,7 @@
   "." 'proof-goto-point
   "f" 'proof-assert-next-command-interactive
   "b" 'proof-undo-last-successful-command
+  "p" '(:ignore t :which-key "+proof")
   "pp" 'proof-process-buffer
   "pr" 'proof-retract-buffer
   "pk" 'proof-shell-exit)
