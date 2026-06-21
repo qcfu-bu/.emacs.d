@@ -61,6 +61,7 @@
 (setq-default tab-width 2)
 (setq-default indent-tabs-mode nil)
 (setq-default indent-line-function 'insert-tab)
+(setq-default fill-column 90)
 (setq delete-by-moving-to-trash t)
 
 ;;;; fonts
@@ -72,11 +73,15 @@
 
 ;;;; theme
 (use-package modus-themes
-  :straight t)
-
-(use-package doom-themes
   :straight t
   :config (load-theme 'modus-operandi t))
+
+;; Deferred: no doom theme is active (we use `modus-operandi'), so there is no
+;; reason to load doom-themes at startup. Its theme files stay on
+;; `custom-theme-load-path', so `consult-theme' can still pull them in on demand.
+(use-package doom-themes
+  :straight t
+  :defer t)
 
 ;;;; modeline
 (use-package doom-modeline
@@ -424,7 +429,8 @@ Avoids an error on systems without aspell/hunspell/ispell."
 
 ;;;; transpose-frame
 (use-package transpose-frame
-  :straight t)
+  :straight t
+  :commands (transpose-frame))
 
 ;;;; tab-bar
 (use-package tab-bar
@@ -484,8 +490,7 @@ Avoids an error on systems without aspell/hunspell/ispell."
 ;;;; presentation
 (use-package olivetti
   :straight t
-  :config
-  (setq-default fill-column 90))
+  :defer t)
 
 (use-package outli
   :straight
@@ -657,7 +662,8 @@ Avoids an error on systems without aspell/hunspell/ispell."
         org-html-validation-link nil))
 
 (use-package htmlize
-  :straight t)
+  :straight t
+  :defer t)
 
 ;;;; latex
 (use-package auctex
@@ -935,11 +941,11 @@ when it holds a Lean buffer, render DOCS in the *lean-infoview* side window
 
 ;;;; miscellaneous
 (use-package tll-mode
-  :demand t
+  :mode ("\\.tll\\'" . tll-mode)
   :hook (tll-mode . prettify-symbols-mode))
 
 (use-package session-type-mode
-  :demand t
+  :mode ("\\.st\\'" . session-type-mode)
   :hook (session-type-mode . prettify-symbols-mode))
 
 (use-package sf-mode

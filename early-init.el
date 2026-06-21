@@ -1,3 +1,9 @@
+;; Raise the GC threshold for the duration of startup so the garbage collector
+;; does not fire repeatedly while packages load. `gcmh' (configured in init.el)
+;; takes ownership of `gc-cons-threshold' once it activates, so this only covers
+;; the small bootstrap window before then.
+(setq gc-cons-threshold most-positive-fixnum)
+
 ;; Prevent package.el loading packages prior to init-file loading.
 (setq package-enable-at-startup nil)
 (setq package-quickstart nil)
