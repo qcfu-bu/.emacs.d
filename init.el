@@ -589,27 +589,18 @@
   :defer t
   :hook
   (ghostel-mode . (lambda () (setq confirm-kill-processes nil)))
-  :bind ("C-`" . ghostel-toggle)
-  :init
-  (defun ghostel-toggle ()
-    "Toggle a ghostel terminal in a right side window."
-    (interactive)
-    (let ((buf (get-buffer "*ghostel*")))
-      (if-let ((win (and buf (get-buffer-window buf))))
-          (delete-window win)
-        (unless buf
-          (setq buf (generate-new-buffer "*ghostel*"))
-          (with-current-buffer buf
-            (ghostel-mode)
-            (let* ((height (window-body-height))
-                   (width (window-max-chars-per-line)))
-              (setq ghostel--term (ghostel--new height width ghostel-max-scrollback))
-              (ghostel--apply-palette ghostel--term))
-            (ghostel--start-process)))
-        (select-window (display-buffer buf)))))
   :config
   (setq ghostel-kill-buffer-on-exit t
         ghostel-max-scrollback 5000))
+
+;;;; ghostel-toggle
+;; Local port of vterm-toggle (lisp/ghostel-toggle.el) replacing the old
+;; hand-rolled popup.  Window placement is delegated to display-buffer, so it
+;; reuses the popper rule for "*ghostel*".
+(use-package ghostel-toggle
+  :commands (ghostel-toggle ghostel-toggle-cd
+             ghostel-toggle-forward ghostel-toggle-backward)
+  :bind ("C-`" . ghostel-toggle))
 
 ;;; lang
 ;;;; markdown
