@@ -39,6 +39,14 @@
         gcmh-high-cons-threshold (* 128 1024 1024))
   (gcmh-mode 1))
 
+;;;; path
+(use-package exec-path-from-shell
+  :straight t
+  :config
+  (when (eq system-type 'darwin)
+    (setq exec-path-from-shell-arguments nil)
+    (exec-path-from-shell-initialize)))
+
 ;;;; server
 (use-package server
   :config (unless (server-running-p) (server-start)))
@@ -418,7 +426,7 @@ Avoids an error on systems without aspell/hunspell/ispell."
           "^\\*xref\\*$"
           "^\\*Org Select\\*$"
           "^\\*TeX Help\\*$"
-          "^\\*ghostel\\*"
+          "^\\*ghostel"
           "^\\*utop\\*$"
           "^\\*cargo-test\\*$"
           "^\\*haskell\\*$"
@@ -544,12 +552,64 @@ Avoids an error on systems without aspell/hunspell/ispell."
   (add-to-list 'copilot-indentation-alist '(org-mode 2))
   (add-to-list 'copilot-indentation-alist '(text-mode 2)))
 
-;; (use-package claude-code-ide
-;;   :straight
-;;   (claude-code-ide
-;;    :type git
-;;    :host github
-;;    :repo "manzaltu/claude-code-ide.el"))
+(use-package claude-code-ide
+  :straight
+  (claude-code-ide
+   :type git
+   :host github
+   :repo "manzaltu/claude-code-ide.el")
+  :config
+  (setq claude-code-ide-terminal-backend 'ghostel)
+
+  ;; Give the session its own stable name (e.g. "*claude-code[project]*") instead
+  ;; of letting ghostel's title tracking rename it to "*ghostel…*". claude-code-ide
+  ;; tries to disable that, but only via `ghostel-set-title-function', which is an
+  ;; obsolete alias; ghostel-mode also wipes buffer-locals during `ghostel-exec'.
+  ;; So we nil the *real* `ghostel-buffer-name-function' in the session buffer.
+  ;; This runs `:after' claude-code-ide's own disable (called both before and
+  ;; after `ghostel-exec', the latter before any async title OSC is processed),
+  ;; so the name is locked in from the start.
+  (defun +claude-code-ide-keep-buffer-name ()
+    "Stop ghostel from renaming the current claude-code-ide buffer by its title."
+    (when (boundp 'ghostel-buffer-name-function)
+      (setq-local ghostel-buffer-name-function nil)))
+  (advice-add 'claude-code-ide--disable-ghostel-title-tracking
+              :after #'+claude-code-ide-keep-buffer-name)
+
+  ;; claude-code-ide runs its CLI in a `ghostel-mode' buffer and manages its own
+  ;; side window, but popper also re-scans windows on
+  ;; `window-configuration-change-hook' and would reclaim it. popper ignores any
+  ;; buffer whose local `popper-popup-status' is `raised' (see
+  ;; `popper-display-control-p' / `popper--find-popups'), so we mark the session
+  ;; buffer that way after each display.
+  (defun +claude-code-ide-popper-ignore (buffer &rest _)
+    "Mark claude-code-ide's BUFFER as raised so popper leaves it alone."
+    (when-let ((buf (get-buffer buffer)))
+      (with-current-buffer buf
+        (setq-local popper-popup-status 'raised))))
+  (advice-add 'claude-code-ide--display-buffer-in-side-window
+              :after #'+claude-code-ide-popper-ignore)
+
+  ;; The Claude CLI runs in a `ghostel-mode' buffer, which defaults to semi-char
+  ;; mode where `ghostel-keymap-exceptions' (C-c, C-x, M-x, …) are kept by Emacs.
+  ;; That makes a bare `C-c' a ghostel prefix instead of an interrupt to Claude.
+  ;; Drop the buffer into `ghostel-char-mode' so every key — including a lone
+  ;; `C-c' and `ESC ESC' — is sent straight to the Claude TUI.  `M-RET' exits
+  ;; back to semi-char when you want Emacs keys (scroll/copy).  A buffer-local
+  ;; guard makes this fire once, so re-displays don't yank you out of semi-char.
+  (defvar-local +claude-code-ide-char-mode-set nil
+    "Non-nil once char mode has been forced for this claude-code-ide buffer.")
+  (defun +claude-code-ide-char-mode (buffer &rest _)
+    "Put claude-code-ide's BUFFER into `ghostel-char-mode' once, on first display."
+    (when-let ((buf (get-buffer buffer)))
+      (with-current-buffer buf
+        (when (and (not +claude-code-ide-char-mode-set)
+                   (derived-mode-p 'ghostel-mode)
+                   (fboundp 'ghostel-char-mode))
+          (setq +claude-code-ide-char-mode-set t)
+          (ghostel-char-mode)))))
+  (advice-add 'claude-code-ide--display-buffer-in-side-window
+              :after #'+claude-code-ide-char-mode))
 
 ;;;; eldoc
 (use-package eldoc
@@ -617,7 +677,21 @@ Avoids an error on systems without aspell/hunspell/ispell."
   (ghostel-mode . (lambda () (setq confirm-kill-processes nil)))
   :config
   (setq ghostel-kill-buffer-on-exit t
-        ghostel-max-scrollback 5000))
+        ghostel-max-scrollback 5000)
+  ;; Name every shell after its project so terminals are identifiable per project
+  ;; and parallel claude-code-ide's "*claude-code[PROJECT]*".  This is a
+  ;; `ghostel-buffer-name-function': called in the buffer on title/`cd' (OSC 7)
+  ;; events with the terminal TITLE; it reads `default-directory' for the project.
+  ;; (claude-code-ide buffers nil this variable locally, so they keep their name.)
+  (defun +ghostel-buffer-name-by-project (_title)
+    "Return \"*ghostel[PROJECT]*\" for the current buffer's project.
+Falls back to the directory's base name when outside any project."
+    (format "*ghostel[%s]*"
+            (if-let ((proj (project-current)))
+                (project-name proj)
+              (file-name-nondirectory
+               (directory-file-name default-directory)))))
+  (setq ghostel-buffer-name-function #'+ghostel-buffer-name-by-project))
 
 ;;;; ghostel-toggle
 ;; Local port of vterm-toggle (lisp/ghostel-toggle.el) replacing the old
@@ -626,7 +700,37 @@ Avoids an error on systems without aspell/hunspell/ispell."
 (use-package ghostel-toggle
   :commands (ghostel-toggle ghostel-toggle-cd
              ghostel-toggle-forward ghostel-toggle-backward)
-  :bind ("C-`" . ghostel-toggle))
+  :bind ("C-`" . ghostel-toggle)
+  :config
+  ;; Per-project scoping: one terminal per project, reused on toggle, with
+  ;; project-aware show/hide.  All the logic lives in ghostel-toggle.el; this
+  ;; single switch is the whole API (it overrides `ghostel-toggle-scope').
+  (setq ghostel-toggle-scoped t)
+  ;; claude-code-ide also runs in a `ghostel-mode' buffer, but it is not one of
+  ;; our shells: it must never be toggled, hidden, or cycled to by ghostel-toggle.
+  ;; `ghostel-toggle-togglable-buffer-functions' is the supported exclusion hook
+  ;; (each predicate must return non-nil for a buffer to be togglable).
+  (defun +claude-code-ide-buffer-p (buffer)
+    "Non-nil when BUFFER is a claude-code-ide session buffer.
+Matches the buffer-name prefix (present at creation, before any title rename)
+and, as a name-independent fallback, claude-code-ide's live process table."
+    (or (string-prefix-p "*claude-code" (buffer-name buffer))
+        (and (boundp 'claude-code-ide--processes)
+             (catch 'found
+               (maphash (lambda (_dir proc)
+                          (when (eq buffer (process-buffer proc))
+                            (throw 'found t)))
+                        claude-code-ide--processes)
+               nil))))
+  (defun +ghostel-toggle-exclude-claude-p (buffer)
+    "ghostel-toggle predicate: non-nil unless BUFFER is a claude-code-ide session."
+    (not (+claude-code-ide-buffer-p buffer)))
+  (add-to-list 'ghostel-toggle-togglable-buffer-functions
+               #'+ghostel-toggle-exclude-claude-p)
+  ;; Drop any claude buffer the load-time scan already registered.
+  (setq ghostel-toggle--buffer-list
+        (cl-remove-if-not #'ghostel-toggle-togglable-buffer-p
+                          ghostel-toggle--buffer-list)))
 
 ;;; lang
 ;;;; markdown

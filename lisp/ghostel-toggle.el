@@ -72,7 +72,25 @@
 
 (defcustom ghostel-toggle-project-root t
   "Create a new Ghostel buffer at the project root directory.
-Only has an effect when `ghostel-toggle-scope' is `project'."
+Only has an effect when the effective scope is `project' (see
+`ghostel-toggle-scoped' and `ghostel-toggle-scope')."
+  :group 'ghostel-toggle
+  :type 'boolean)
+
+(defcustom ghostel-toggle-scoped nil
+  "When non-nil, scope `ghostel-toggle' to the current project.
+
+This is the single switch most users want: enabling it makes the toggle
+commands behave as if `ghostel-toggle-scope' were `project', and in addition
+makes show/hide project-aware.  Concretely:
+
+- Toggling reuses the running terminal whose project root matches the
+  current buffer's project, and creates one only when none exists.
+- A visible terminal belonging to another project is ignored, so a toggle
+  issued from project B never hides or reuses project A's terminal.
+
+When nil, `ghostel-toggle-scope' is honored as-is.  When non-nil it takes
+precedence over `ghostel-toggle-scope' (the effective scope is `project')."
   :group 'ghostel-toggle
   :type 'boolean)
 
@@ -140,6 +158,14 @@ managed by `ghostel-toggle'.  All must return non-nil (in addition to the
 ;;
 ;; Predicates
 ;;
+
+(defun ghostel-toggle--effective-scope ()
+  "Return the scope `ghostel-toggle' should use right now.
+`ghostel-toggle-scoped' is a convenience override: when it is non-nil the
+effective scope is `project'; otherwise `ghostel-toggle-scope' is returned
+unchanged.  All scope-sensitive code consults this instead of reading the
+variables directly, so the two options stay in sync."
+  (if ghostel-toggle-scoped 'project ghostel-toggle-scope))
 
 (defun ghostel-toggle-togglable-buffer-p (buffer)
   "Return non-nil if BUFFER is a Ghostel buffer managed by `ghostel-toggle'."
@@ -225,9 +251,20 @@ ARGS behaves as in `ghostel-toggle'."
             (switch-to-buffer-other-window buf))))))))
 
 (defun ghostel-toggle--get-window ()
-  "Return a live window currently showing a togglable Ghostel buffer, or nil."
-  (cl-find-if (lambda (w) (ghostel-toggle-togglable-buffer-p (window-buffer w)))
-              (window-list)))
+  "Return a live window currently showing a togglable Ghostel buffer, or nil.
+When the effective scope is `project' (see `ghostel-toggle-scoped'), only
+windows whose buffer belongs to the current project are considered, so a
+terminal from another project is neither hidden nor reused from here."
+  (let ((root (and (eq (ghostel-toggle--effective-scope) 'project)
+                   (ghostel-toggle--project-root))))
+    (cl-find-if
+     (lambda (w)
+       (let ((buf (window-buffer w)))
+         (and (ghostel-toggle-togglable-buffer-p buf)
+              (or (null root)
+                  (equal (with-current-buffer buf (ghostel-toggle--project-root))
+                         root)))))
+     (window-list))))
 
 (defun ghostel-toggle--bury-all ()
   "Bury all Ghostel buffers, in order."
@@ -345,7 +382,7 @@ action so the result integrates with `ghostel-toggle's window handling."
          (display-action (ghostel-toggle--display-action))
          project-root buffer)
     (when (and ghostel-toggle-project-root
-               (eq ghostel-toggle-scope 'project))
+               (eq (ghostel-toggle--effective-scope) 'project))
       (setq project-root (ghostel-toggle--project-root))
       (when project-root
         (setq default-directory project-root)))
@@ -357,16 +394,19 @@ action so the result integrates with `ghostel-toggle's window handling."
     buffer))
 
 (defun ghostel-toggle--get-buffer (&optional make-cd ignore-prompt-p)
-  "Return a Ghostel buffer to switch to, honoring `ghostel-toggle-scope'.
-MAKE-CD and IGNORE-PROMPT-P are forwarded to the recent-buffer search."
-  (cond
-   ((eq ghostel-toggle-scope 'dedicated)
-    (ghostel-toggle--get-dedicated-buffer))
-   ((eq ghostel-toggle-scope 'project)
-    (ghostel-toggle--recent-ghostel-buffer
-     make-cd ignore-prompt-p (ghostel-toggle--project-root)))
-   (t
-    (ghostel-toggle--recent-ghostel-buffer make-cd ignore-prompt-p))))
+  "Return a Ghostel buffer to switch to, honoring the effective scope.
+The effective scope comes from `ghostel-toggle--effective-scope' (which
+respects `ghostel-toggle-scoped').  MAKE-CD and IGNORE-PROMPT-P are forwarded
+to the recent-buffer search."
+  (let ((scope (ghostel-toggle--effective-scope)))
+    (cond
+     ((eq scope 'dedicated)
+      (ghostel-toggle--get-dedicated-buffer))
+     ((eq scope 'project)
+      (ghostel-toggle--recent-ghostel-buffer
+       make-cd ignore-prompt-p (ghostel-toggle--project-root)))
+     (t
+      (ghostel-toggle--recent-ghostel-buffer make-cd ignore-prompt-p)))))
 
 (defun ghostel-toggle--get-dedicated-buffer ()
   "Return the dedicated Ghostel buffer, creating it if necessary."
@@ -393,6 +433,7 @@ MAKE-CD restricts to buffers on the same host whose shell is at a prompt
   (let ((shell-buffer)
         (curbuf (current-buffer))
         (curframe (window-frame))
+        (scope (ghostel-toggle--effective-scope))
         buffer-host ghostel-host)
     (if (ignore-errors (file-remote-p default-directory))
         (with-parsed-tramp-file-name default-directory nil
@@ -402,10 +443,10 @@ MAKE-CD restricts to buffers on the same host whose shell is at a prompt
              (when (and (ghostel-toggle-togglable-buffer-p buf)
                         (not (eq curbuf buf))
                         (not (buffer-local-value 'ghostel-toggle--dedicated-p buf))
-                        (or (not ghostel-toggle-scope)
-                            (and (eq ghostel-toggle-scope 'frame)
+                        (or (not scope)
+                            (and (eq scope 'frame)
                                  (ghostel-toggle--not-in-other-frame curframe buf))
-                            (and (eq ghostel-toggle-scope 'project)
+                            (and (eq scope 'project)
                                  (equal (with-current-buffer buf
                                           (ghostel-toggle--project-root))
                                         dir))))
