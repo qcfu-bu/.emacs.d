@@ -8,6 +8,15 @@
 (setq package-enable-at-startup nil)
 (setq package-quickstart nil)
 
+;; emacs-plus bakes CC=/opt/homebrew/bin/gcc-16 into the app bundle's
+;; Info.plist LSEnvironment so native compilation can find the Homebrew GCC
+;; toolchain. That variable is inherited by every subprocess (vterm, compile,
+;; cargo, ...). GCC on macOS can't emit native Apple TLS, so any cc-crate build
+;; (e.g. mimalloc) compiles thread-locals to emulated TLS and then fails to link
+;; under rustc's `-nodefaultlibs`. Native compilation only needs LIBRARY_PATH +
+;; libgccjit, not CC, so unset CC here to let child builds use clang.
+(setenv "CC" nil)
+
 ;; Prevent the glimpse of un-styled Emacs by disabling these UI elements early.
 (push '(menu-bar-lines . 0)   default-frame-alist)
 (push '(tool-bar-lines . 0)   default-frame-alist)

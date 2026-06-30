@@ -588,28 +588,7 @@ Avoids an error on systems without aspell/hunspell/ispell."
       (with-current-buffer buf
         (setq-local popper-popup-status 'raised))))
   (advice-add 'claude-code-ide--display-buffer-in-side-window
-              :after #'+claude-code-ide-popper-ignore)
-
-  ;; The Claude CLI runs in a `ghostel-mode' buffer, which defaults to semi-char
-  ;; mode where `ghostel-keymap-exceptions' (C-c, C-x, M-x, …) are kept by Emacs.
-  ;; That makes a bare `C-c' a ghostel prefix instead of an interrupt to Claude.
-  ;; Drop the buffer into `ghostel-char-mode' so every key — including a lone
-  ;; `C-c' and `ESC ESC' — is sent straight to the Claude TUI.  `M-RET' exits
-  ;; back to semi-char when you want Emacs keys (scroll/copy).  A buffer-local
-  ;; guard makes this fire once, so re-displays don't yank you out of semi-char.
-  (defvar-local +claude-code-ide-char-mode-set nil
-    "Non-nil once char mode has been forced for this claude-code-ide buffer.")
-  (defun +claude-code-ide-char-mode (buffer &rest _)
-    "Put claude-code-ide's BUFFER into `ghostel-char-mode' once, on first display."
-    (when-let ((buf (get-buffer buffer)))
-      (with-current-buffer buf
-        (when (and (not +claude-code-ide-char-mode-set)
-                   (derived-mode-p 'ghostel-mode)
-                   (fboundp 'ghostel-char-mode))
-          (setq +claude-code-ide-char-mode-set t)
-          (ghostel-char-mode)))))
-  (advice-add 'claude-code-ide--display-buffer-in-side-window
-              :after #'+claude-code-ide-char-mode))
+              :after #'+claude-code-ide-popper-ignore))
 
 ;;;; eldoc
 (use-package eldoc
