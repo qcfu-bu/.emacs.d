@@ -19,6 +19,14 @@
       (goto-char (point-max))
       (eval-print-last-sexp)))
   (load bootstrap-file nil 'nomessage))
+;; Emacs ships project/xref/jsonrpc/eldoc/flymake.  Left to itself straight
+;; clones the GNU-ELPA copies whenever a package lists them as deps (rustic pulls
+;; `project', copilot `jsonrpc'), shadowing the built-ins on `load-path' and
+;; erroring with "Feature `project' is now provided by a different file".  Mark
+;; them built-in so straight skips them.  Must be set before those packages load.
+(setq straight-built-in-pseudo-packages
+      (append '(project xref jsonrpc eldoc flymake external-completion)
+              straight-built-in-pseudo-packages))
 (straight-use-package 'use-package)
 
 ;;;; benchmark
@@ -597,9 +605,24 @@ Avoids an error on systems without aspell/hunspell/ispell."
   :config
   (setq eldoc-display-functions '(eldoc-display-in-buffer)))
 
+;;;; project
+(use-package project
+  ;; Built-in — do NOT add `:straight t' (see the eglot note below).  Emacs
+  ;; autoloads project.el on demand via its own commands, so this block only
+  ;; houses project.el settings; the SPC-p leader keys live in `;;; keybinds'.
+  :defer t
+  :config
+  ;; Also treat any directory containing a `.project' file as a project root.
+  (setq project-vc-extra-root-markers '(".project")))
+
 ;;;; eglot
+;; Built-in on Emacs 30 — do NOT add `:straight t'.  straight would build the
+;; GNU-ELPA eglot plus its deps (project/xref/jsonrpc); eglot's load-time
+;; `require-with-check' guard (eglot.el: "signal an error if the loaded file is
+;; not the one that should have been loaded") then fails with "provided by a
+;; different file".  `straight-built-in-pseudo-packages' in the bootstrap keeps
+;; straight from shadowing these built-ins.
 (use-package eglot
-  :straight t
   :commands (eglot-ensure)
   :init
   (defun eglot-format-on-save ()
