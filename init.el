@@ -560,43 +560,24 @@ Avoids an error on systems without aspell/hunspell/ispell."
   (add-to-list 'copilot-indentation-alist '(org-mode 2))
   (add-to-list 'copilot-indentation-alist '(text-mode 2)))
 
-(use-package claude-code-ide
-  :straight
-  (claude-code-ide
-   :type git
-   :host github
-   :repo "manzaltu/claude-code-ide.el")
+(use-package agent-shell
+  :straight t
   :config
-  (setq claude-code-ide-terminal-backend 'ghostel)
-
-  ;; Give the session its own stable name (e.g. "*claude-code[project]*") instead
-  ;; of letting ghostel's title tracking rename it to "*ghostel…*". claude-code-ide
-  ;; tries to disable that, but only via `ghostel-set-title-function', which is an
-  ;; obsolete alias; ghostel-mode also wipes buffer-locals during `ghostel-exec'.
-  ;; So we nil the *real* `ghostel-buffer-name-function' in the session buffer.
-  ;; This runs `:after' claude-code-ide's own disable (called both before and
-  ;; after `ghostel-exec', the latter before any async title OSC is processed),
-  ;; so the name is locked in from the start.
-  (defun +claude-code-ide-keep-buffer-name ()
-    "Stop ghostel from renaming the current claude-code-ide buffer by its title."
-    (when (boundp 'ghostel-buffer-name-function)
-      (setq-local ghostel-buffer-name-function nil)))
-  (advice-add 'claude-code-ide--disable-ghostel-title-tracking
-              :after #'+claude-code-ide-keep-buffer-name)
-
-  ;; claude-code-ide runs its CLI in a `ghostel-mode' buffer and manages its own
-  ;; side window, but popper also re-scans windows on
-  ;; `window-configuration-change-hook' and would reclaim it. popper ignores any
-  ;; buffer whose local `popper-popup-status' is `raised' (see
-  ;; `popper-display-control-p' / `popper--find-popups'), so we mark the session
-  ;; buffer that way after each display.
-  (defun +claude-code-ide-popper-ignore (buffer &rest _)
-    "Mark claude-code-ide's BUFFER as raised so popper leaves it alone."
-    (when-let ((buf (get-buffer buffer)))
-      (with-current-buffer buf
-        (setq-local popper-popup-status 'raised))))
-  (advice-add 'claude-code-ide--display-buffer-in-side-window
-              :after #'+claude-code-ide-popper-ignore))
+  (setq agent-shell-anthropic-authentication
+        (agent-shell-anthropic-make-authentication :login t))
+  (setq agent-shell-anthropic-default-session-mode-id "auto")
+  (setq agent-shell-display-action
+        '(display-buffer-in-side-window
+          (side . right)
+          (window-width . 0.5)))
+  (defun my/agent-shell-toggle-or-start ()
+    "Toggle the agent shell, starting a new claude-code one if none exists."
+    (interactive)
+    (if (or (agent-shell--current-shell)
+            (agent-shell-project-buffers)
+            (agent-shell-buffers))
+        (agent-shell-toggle)
+      (agent-shell-anthropic-start-claude-code))))
 
 ;;;; eldoc
 (use-package eldoc
@@ -676,36 +657,12 @@ Avoids an error on systems without aspell/hunspell/ispell."
   :straight t
   :defer t
   :hook
-  ((ghostel-mode . (lambda () (setq confirm-kill-processes nil)))
-   (ghostel-mode . +ghostel-tame-scroll))
+  ((ghostel-mode . (lambda () (setq confirm-kill-processes nil))))
   :config
-  ;; `pixel-scroll-precision-mode' (on globally) gives trackpad wheel events
-  ;; momentum + pixel granularity — nice for prose, but it makes the terminal
-  ;; scrollback fly.  ghostel forwards wheel events to the TUI only when the
-  ;; program enables mouse tracking (Claude's Ink UI doesn't), so here they fall
-  ;; through to our scroll package.  Drop ghostel buffers to plain, fixed
-  ;; line-based scrolling; bump `mouse-wheel-scroll-amount' if 1 line is too slow.
-  (defun +ghostel-tame-scroll ()
-    "Use slow, fixed line-based wheel scrolling in ghostel buffers."
-    (setq-local pixel-scroll-precision-mode nil
-                mouse-wheel-scroll-amount '(1)
-                mouse-wheel-progressive-speed nil))
+  ;; Terminals are named per-project by `ghostel-toggle-buffer-name-by-project'
+  ;; (wired up in lisp/ghostel-toggle.el).
   (setq ghostel-kill-buffer-on-exit t
-        ghostel-max-scrollback 5000)
-  ;; Name every shell after its project so terminals are identifiable per project
-  ;; and parallel claude-code-ide's "*claude-code[PROJECT]*".  This is a
-  ;; `ghostel-buffer-name-function': called in the buffer on title/`cd' (OSC 7)
-  ;; events with the terminal TITLE; it reads `default-directory' for the project.
-  ;; (claude-code-ide buffers nil this variable locally, so they keep their name.)
-  (defun +ghostel-buffer-name-by-project (_title)
-    "Return \"*ghostel[PROJECT]*\" for the current buffer's project.
-Falls back to the directory's base name when outside any project."
-    (format "*ghostel[%s]*"
-            (if-let ((proj (project-current)))
-                (project-name proj)
-              (file-name-nondirectory
-               (directory-file-name default-directory)))))
-  (setq ghostel-buffer-name-function #'+ghostel-buffer-name-by-project))
+        ghostel-max-scrollback 5000))
 
 ;;;; ghostel-toggle
 ;; Local port of vterm-toggle (lisp/ghostel-toggle.el) replacing the old
@@ -719,32 +676,7 @@ Falls back to the directory's base name when outside any project."
   ;; Per-project scoping: one terminal per project, reused on toggle, with
   ;; project-aware show/hide.  All the logic lives in ghostel-toggle.el; this
   ;; single switch is the whole API (it overrides `ghostel-toggle-scope').
-  (setq ghostel-toggle-scoped t)
-  ;; claude-code-ide also runs in a `ghostel-mode' buffer, but it is not one of
-  ;; our shells: it must never be toggled, hidden, or cycled to by ghostel-toggle.
-  ;; `ghostel-toggle-togglable-buffer-functions' is the supported exclusion hook
-  ;; (each predicate must return non-nil for a buffer to be togglable).
-  (defun +claude-code-ide-buffer-p (buffer)
-    "Non-nil when BUFFER is a claude-code-ide session buffer.
-Matches the buffer-name prefix (present at creation, before any title rename)
-and, as a name-independent fallback, claude-code-ide's live process table."
-    (or (string-prefix-p "*claude-code" (buffer-name buffer))
-        (and (boundp 'claude-code-ide--processes)
-             (catch 'found
-               (maphash (lambda (_dir proc)
-                          (when (eq buffer (process-buffer proc))
-                            (throw 'found t)))
-                        claude-code-ide--processes)
-               nil))))
-  (defun +ghostel-toggle-exclude-claude-p (buffer)
-    "ghostel-toggle predicate: non-nil unless BUFFER is a claude-code-ide session."
-    (not (+claude-code-ide-buffer-p buffer)))
-  (add-to-list 'ghostel-toggle-togglable-buffer-functions
-               #'+ghostel-toggle-exclude-claude-p)
-  ;; Drop any claude buffer the load-time scan already registered.
-  (setq ghostel-toggle--buffer-list
-        (cl-remove-if-not #'ghostel-toggle-togglable-buffer-p
-                          ghostel-toggle--buffer-list)))
+  (setq ghostel-toggle-scoped t))
 
 ;;; lang
 ;;;; markdown
@@ -1087,19 +1019,20 @@ when it holds a Lean buffer, render DOCS in the *lean-infoview* side window
 ;; never shadow the commands bound under each prefix (verified: `SPC m' stays
 ;; unbound here and falls through to the mode-local `SPC m ...' bindings).
 (spc-leader-def
-  "q"   '(:ignore t :which-key "+quit")
-  "h"   '(:ignore t :which-key "+help")
-  "e"   '(:ignore t :which-key "+editor")
-  "f"   '(:ignore t :which-key "+files")
-  "b"   '(:ignore t :which-key "+buffers")
-  "w"   '(:ignore t :which-key "+windows")
-  "F"   '(:ignore t :which-key "+frames")
-  "p"   '(:ignore t :which-key "+projects")
-  "B"   '(:ignore t :which-key "+bookmarks")
-  "TAB" '(:ignore t :which-key "+tabs")
-  "t"   '(:ignore t :which-key "+toggles")
-  "g"   '(:ignore t :which-key "+git")
-  "m"   '(:ignore t :which-key "+local"))
+  "q"   '(:ignore t :which-key "quit")
+  "h"   '(:ignore t :which-key "help")
+  "a"   '(:ignore t :which-key "ai")
+  "e"   '(:ignore t :which-key "editor")
+  "f"   '(:ignore t :which-key "files")
+  "b"   '(:ignore t :which-key "buffers")
+  "w"   '(:ignore t :which-key "windows")
+  "F"   '(:ignore t :which-key "frames")
+  "p"   '(:ignore t :which-key "projects")
+  "B"   '(:ignore t :which-key "bookmarks")
+  "TAB" '(:ignore t :which-key "tabs")
+  "t"   '(:ignore t :which-key "toggles")
+  "g"   '(:ignore t :which-key "git")
+  "m"   '(:ignore t :which-key "local"))
 
 ;;;;; core
 (spc-leader-def
@@ -1120,6 +1053,10 @@ when it holds a Lean buffer, render DOCS in the *lean-infoview* side window
   "hm" 'describe-mode
   "hi" 'describe-input-method
   "hc" 'consult-flymake)
+
+;;;;; ai
+(spc-leader-def
+  "ai" 'my/agent-shell-toggle-or-start)
 
 ;;;;; editor
 (spc-leader-def
@@ -1185,7 +1122,7 @@ when it holds a Lean buffer, render DOCS in the *lean-infoview* side window
   "pa" 'treemacs-add-project-to-workspace
   "pd" 'treemacs-remove-project-from-workspace
   "pr" 'treemacs-rename-project
-  "p" '(:ignore t :which-key "+project"))
+  "p" '(:ignore t :which-key "project"))
 
 (general-def evil-treemacs-state-map
   ;; unset keys
@@ -1196,7 +1133,7 @@ when it holds a Lean buffer, render DOCS in the *lean-infoview* side window
   "wd" 'treemacs-remove-workspace
   "wr" 'treemacs-rename-workspace
   "we" 'treemacs-edit-workspaces
-  "w" '(:ignore t :which-key "+workspace"))
+  "w" '(:ignore t :which-key "workspace"))
 
 ;;;;; bookmarks
 (spc-leader-def

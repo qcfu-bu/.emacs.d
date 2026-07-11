@@ -472,6 +472,25 @@ MAKE-CD restricts to buffers on the same host whose shell is at a prompt
     (when proj
       (project-root proj))))
 
+(defun ghostel-toggle-buffer-name-by-project (_title)
+  "Return \"*ghostel[PROJECT]*\" for the current buffer's project.
+Ignores the terminal title; a `ghostel-buffer-name-function' that names each
+terminal after its project, so the project-scoped toggling of
+`ghostel-toggle-scoped' keeps one stably named terminal per project.
+Falls back to the directory's base name when outside any project."
+  (require 'project)
+  (format "*ghostel[%s]*"
+          (if-let ((proj (project-current)))
+              (project-name proj)
+            (file-name-nondirectory
+             (directory-file-name default-directory)))))
+
+;; Name terminals by project by default, matching `ghostel-toggle-scoped's
+;; one-terminal-per-project model.  Only override ghostel's stock namer, so an
+;; explicit user choice of `ghostel-buffer-name-function' still wins.
+(when (eq ghostel-buffer-name-function #'ghostel-buffer-name-by-title)
+  (setq ghostel-buffer-name-function #'ghostel-toggle-buffer-name-by-project))
+
 (defun ghostel-toggle--recent-other-buffer (&optional _args)
   "Return the most recently viewed non-Ghostel, non-internal buffer."
   (let (shell-buffer)
