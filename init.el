@@ -90,7 +90,7 @@
 ;;;; theme
 (use-package modus-themes
   :straight t
-  :config (load-theme 'modus-operandi t))
+  :config (load-theme 'modus-operandi-tinted t))
 
 ;; Deferred: no doom theme is active (we use `modus-operandi'), so there is no
 ;; reason to load doom-themes at startup. Its theme files stay on
@@ -581,10 +581,15 @@ Avoids an error on systems without aspell/hunspell/ispell."
   (setq agent-shell-anthropic-authentication
         (agent-shell-anthropic-make-authentication :login t))
   (setq agent-shell-anthropic-default-session-mode-id "auto")
+  ;; Display a freshly started shell immediately.  The default `prompt'
+  ;; session strategy defers showing the buffer until a session is chosen,
+  ;; so the first invocation after killing a shell looks like nothing
+  ;; happened (`latest' would instead auto-resume the previous session).
+  (setq agent-shell-session-strategy 'latest)
   (setq agent-shell-display-action
         '(display-buffer-in-side-window
           (side . right)
-          (window-width . 0.5)))
+          (window-width . 0.4)))
   (defun my/agent-shell-toggle-or-start ()
     "Toggle the agent shell, starting a new claude-code one if none exists."
     (interactive)
