@@ -140,6 +140,20 @@
       mouse-wheel-scroll-amount-horizontal 2)
 (pixel-scroll-precision-mode t)
 
+;;;; yascroll
+;; Local modernized rewrite of yascroll (lisp/yascroll.el): a non-intrusive
+;; scroll bar that appears on scroll and auto-hides while idle.  The thumb
+;; is a viewport-fixed child frame at the window's right edge: overlay-based
+;; thumbs are anchored to buffer text and visibly ride along with it under
+;; `pixel-scroll-precision-mode', and the fringes belong to diff-hl
+;; (`diff-hl-side' is `right') — a child frame avoids both.  On macOS the
+;; thumb is purely visual: its window ignores the mouse entirely.
+(use-package yascroll
+  :demand t
+  :config
+  (setq yascroll-scroll-bar '(child-frame text-area))
+  (global-yascroll-bar-mode 1))
+
 ;;;; files
 (use-package files
   :config
