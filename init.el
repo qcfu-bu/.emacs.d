@@ -676,8 +676,20 @@ Avoids an error on systems without aspell/hunspell/ispell."
   :straight t
   :defer t
   :hook
-  (ghostel-mode . (lambda () (setq confirm-kill-processes nil)))
+  ((ghostel-mode . (lambda () (setq confirm-kill-processes nil)))
+   (ghostel-mode . +ghostel-tame-scroll))
   :config
+  ;; `pixel-scroll-precision-mode' (on globally) gives trackpad wheel events
+  ;; momentum + pixel granularity — nice for prose, but it makes the terminal
+  ;; scrollback fly.  ghostel forwards wheel events to the TUI only when the
+  ;; program enables mouse tracking (Claude's Ink UI doesn't), so here they fall
+  ;; through to our scroll package.  Drop ghostel buffers to plain, fixed
+  ;; line-based scrolling; bump `mouse-wheel-scroll-amount' if 1 line is too slow.
+  (defun +ghostel-tame-scroll ()
+    "Use slow, fixed line-based wheel scrolling in ghostel buffers."
+    (setq-local pixel-scroll-precision-mode nil
+                mouse-wheel-scroll-amount '(1)
+                mouse-wheel-progressive-speed nil))
   (setq ghostel-kill-buffer-on-exit t
         ghostel-max-scrollback 5000)
   ;; Name every shell after its project so terminals are identifiable per project
