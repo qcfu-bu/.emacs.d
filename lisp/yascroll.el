@@ -7,7 +7,7 @@
 ;; Author: Tomohiro Matsuyama <m2ym.pub@gmail.com>
 ;; Maintainer: Qiancheng Fu <qf59@cornell.edu>
 ;; Keywords: convenience
-;; Version: 1.6.0
+;; Version: 1.8.0
 ;; Package-Requires: ((emacs "27.1"))
 ;; URL: https://github.com/emacsorphanage/yascroll
 
@@ -29,7 +29,8 @@
 ;; A modernized, robust rewrite of Tomohiro Matsuyama's `yascroll'.
 ;;
 ;; It shows a non-intrusive scroll bar "thumb" that appears on scroll and
-;; (optionally) auto-hides while idle.
+;; (optionally) auto-hides while idle.  The thumb is purely visual: it is
+;; an indicator, not a control, and does not respond to the mouse.
 ;;
 ;; Render targets, in the order you should prefer them:
 ;;
@@ -57,7 +58,6 @@
 ;; * Scroll/change hooks never mutate display state during redisplay; they
 ;;   schedule a coalescing 0-second timer, and a render-state signature
 ;;   skips redundant redraws during scroll event floods.
-;; * Mouse support: click or drag the thumb/fringe/margin to navigate.
 ;; * The buffer line count is cached and invalidated by the modification
 ;;   tick, so scrolling large buffers does not re-count lines every event.
 ;; * `line-spacing'-aware, pixel-based window-height measurement.
@@ -65,6 +65,8 @@
 ;; * Naming modernized to dashes, `lexical-binding', Emacs 27.1+.
 ;; * A transient rendering error hides the bar instead of tearing the whole
 ;;   minor mode down.
+;; * The child-frame thumb is translucent (`yascroll-child-frame-alpha'),
+;;   faintly showing the text beneath it like a native overlay scroll bar.
 ;; * On macOS the child-frame thumb is mouse-transparent: its NSWindow is
 ;;   set to ignore mouse events (via in-process AppleScriptObjC, since no
 ;;   frame parameter reaches that switch), so it cannot be clicked,
@@ -163,13 +165,6 @@ instant."
   :type 'integer
   :group 'yascroll)
 
-(defcustom yascroll-enable-mouse t
-  "When non-nil, allow clicking and dragging the scroll bar to navigate.
-When nil, those mouse events fall through to whatever they were
-otherwise bound to."
-  :type 'boolean
-  :group 'yascroll)
-
 (defcustom yascroll-child-frame-width 6
   "Requested pixel width of the child-frame thumb.
 Emacs clamps a frame to at least one character column of its font, so
@@ -181,6 +176,20 @@ monospace font); the thumb is aligned using its realized width."
 (defcustom yascroll-child-frame-min-height 16
   "Minimum pixel height of the child-frame thumb."
   :type 'integer
+  :group 'yascroll)
+
+(defcustom yascroll-child-frame-alpha 0.8
+  "Opacity of the child-frame thumb, 0.0 (invisible) to 1.0 (opaque).
+The thumb is a real window, so anything below 1.0 faintly shows the
+text beneath it.  Nil means fully opaque.  Applied when a thumb frame
+is created; a live change takes effect on frames created afterwards.
+
+The auto-hide fade still animates the thumb's background color rather
+than this parameter: *changing* the alpha of an already-visible NS
+child frame renders erratically (see the Fade-out section), but a
+constant alpha is applied reliably every time the frame is shown."
+  :type '(choice (const :tag "Opaque" nil)
+                 (number :tag "Opacity (0.0 - 1.0)"))
   :group 'yascroll)
 
 (defcustom yascroll-thumb-fringe-bitmap 'yascroll-thumb
@@ -263,16 +272,17 @@ indicators (a fringe shows only one bitmap per line per side)."
 (defvar yascroll-debug nil
   "When non-nil, re-signal rendering errors instead of swallowing them.")
 
-(defvar yascroll--thumb-keymap
+(defvar yascroll--bar-buffer-keymap
   (let ((map (make-sparse-keymap)))
-    (define-key map [down-mouse-1] #'yascroll-mouse-drag)
-    ;; Swallow every other click: commands like `mouse-save-then-kill'
-    ;; would otherwise select the bar window or act on the bar buffer.
-    (dolist (key '([mouse-1] [down-mouse-2] [mouse-2]
+    ;; The thumb is an indicator, not a control.  Swallow clicks that
+    ;; reach the bar buffer (they cannot on macOS, where the thumb
+    ;; window ignores the mouse entirely): commands like
+    ;; `mouse-drag-region' would otherwise select the bar window.
+    (dolist (key '([down-mouse-1] [mouse-1] [down-mouse-2] [mouse-2]
                    [down-mouse-3] [mouse-3]))
       (define-key map key #'ignore))
     map)
-  "Keymap on the thumb: overlay glyphs and the child-frame bar buffer.")
+  "Keymap of the child-frame bar buffer.")
 
 ;;; Utilities
 
@@ -351,13 +361,8 @@ Derived from WINDOW-LINES, BUFFER-LINES and SCROLL-TOP."
 ;;; Thumb overlays
 
 (defun yascroll--thumb-string (string &optional display)
-  "Propertize STRING as a thumb glyph, optionally with DISPLAY.
-Adds mouse affordances so the visible thumb itself is draggable."
-  (apply #'propertize string
-         'pointer 'hand
-         'help-echo "mouse-1: drag to scroll"
-         'keymap yascroll--thumb-keymap
-         (when display (list 'display display))))
+  "Propertize STRING as a thumb glyph, optionally with DISPLAY."
+  (if display (propertize string 'display display) string))
 
 (defun yascroll--make-thumb-overlay-text-area ()
   "Create one text-area thumb overlay at point's line."
@@ -460,10 +465,27 @@ MAKE-THUMB-OVERLAY builds one overlay at point."
                   right-margin-width 0
                   truncate-lines t
                   buffer-read-only t)
-      (use-local-map yascroll--thumb-keymap)))
+      (use-local-map yascroll--bar-buffer-keymap)))
   yascroll--bar-buffer)
 
 (declare-function ns-do-applescript "nsfns.m" (script))
+
+(defvar yascroll--transparency-timer nil
+  "Pending coalesced mouse-transparency sweep, or nil.")
+
+(defun yascroll--request-mouse-transparency ()
+  "Schedule a coalesced `yascroll--make-bar-frames-mouse-transparent'.
+Deferring keeps the AppleScript engine (which is not reentrant) out of
+frame-creation call stacks, and a burst of frame creations costs one
+sweep instead of one per frame."
+  (when (and (fboundp 'ns-do-applescript)
+             (not (timerp yascroll--transparency-timer)))
+    (setq yascroll--transparency-timer
+          (run-with-timer
+           0 nil
+           (lambda ()
+             (setq yascroll--transparency-timer nil)
+             (yascroll--make-bar-frames-mouse-transparent))))))
 
 (defun yascroll--make-bar-frames-mouse-transparent ()
   "Make every child-frame thumb's NSWindow ignore the mouse (macOS).
@@ -521,13 +543,14 @@ end repeat"))))
                  (tool-bar-lines . 0)
                  (tab-bar-lines . 0)
                  (cursor-type . nil)
+                 (alpha . ,yascroll-child-frame-alpha)
                  (visibility . nil)
                  (desktop-dont-save . t))))
         (let ((root (frame-root-window frame)))
           (set-window-buffer root (yascroll--bar-buffer))
           (set-window-dedicated-p root t))
         (set-window-parameter window 'yascroll--bar-frame frame)
-        (yascroll--make-bar-frames-mouse-transparent)))
+        (yascroll--request-mouse-transparency)))
     frame))
 
 (defun yascroll--thumb-color ()
@@ -656,11 +679,19 @@ Return non-nil when the buffer overflows WINDOW (a thumb applies)."
   "Position and show the child-frame thumb for the selected window.
 Return non-nil when a thumb was shown."
   (let ((window (selected-window)))
-    (when (yascroll--position-bar-frame window (yascroll--bar-frame window))
-      (let ((frame (window-parameter window 'yascroll--bar-frame)))
-        (unless (frame-visible-p frame)
-          (make-frame-visible frame)))
-      t)))
+    ;; Two guards, both load-bearing: a window living in a thumb frame
+    ;; must never grow a thumb of its own (recursion), and the overflow
+    ;; decision must come before `yascroll--bar-frame', which creates
+    ;; the frame as a side effect.
+    (when (and (not (frame-parameter (window-frame window)
+                                     'yascroll--parent-window))
+               (< (yascroll--window-line-height window)
+                  (yascroll--buffer-line-count)))
+      (when (yascroll--position-bar-frame window (yascroll--bar-frame window))
+        (let ((frame (window-parameter window 'yascroll--bar-frame)))
+          (unless (frame-visible-p frame)
+            (make-frame-visible frame)))
+        t))))
 
 (defun yascroll--pre-redisplay (window)
   "Track WINDOW's scroll state before WINDOW is redrawn.
@@ -709,10 +740,15 @@ changes are handled by the usual update paths and ignored here."
       (yascroll--restore-thumb-color frame))))
 
 (defun yascroll--cleanup-bar-frames ()
-  "Delete child-frame thumbs whose parent window is gone."
+  "Delete child-frame thumbs whose parent window is gone or is a thumb.
+The second case heals sessions poisoned by the runaway thumb-on-thumb
+recursion fixed in 1.7.2."
   (dolist (frame (frame-list))
     (let ((window (frame-parameter frame 'yascroll--parent-window)))
-      (when (and window (not (window-live-p window)))
+      (when (and window
+                 (or (not (window-live-p window))
+                     (frame-parameter (window-frame window)
+                                      'yascroll--parent-window)))
         (delete-frame frame t)))))
 
 (defun yascroll--delete-bar-frame (window)
@@ -1023,78 +1059,19 @@ A failure hides the bar but leaves `yascroll-bar-mode' enabled."
                             (yascroll--render-signature)))
           (yascroll--safe-show))))))
 
-;;; Mouse navigation
-
-(defun yascroll--event-window-and-y (posn)
-  "Return (WINDOW . Y) for POSN, resolving child-frame thumb events.
-WINDOW is the text window being scrolled and Y is the pixel offset of
-the event from that window's frame top."
-  (let ((window (posn-window posn))
-        (y (or (cdr (posn-x-y posn)) 0)))
-    (if (not (windowp window))
-        nil
-      (let ((parent (frame-parameter (window-frame window)
-                                     'yascroll--parent-window)))
-        (if (window-live-p parent)
-            ;; Event on the child-frame thumb: its frame position is
-            ;; relative to the parent frame, same coordinate space as
-            ;; `window-inside-pixel-edges'.
-            (cons parent (+ (cdr (frame-position (window-frame window))) y))
-          (cons window (+ (nth 1 (window-inside-pixel-edges window)) y)))))))
-
-(defun yascroll--event-fraction (posn)
-  "Return (WINDOW . FRACTION) for POSN, or nil.
-FRACTION is the vertical position within WINDOW's text area, 0..1."
-  (when-let* ((resolved (yascroll--event-window-and-y posn)))
-    (let* ((window (car resolved))
-           (top (nth 1 (window-inside-pixel-edges window)))
-           (height (max 1 (window-body-height window t)))
-           (fraction (/ (float (- (cdr resolved) top)) height)))
-      (cons window (max 0.0 (min 1.0 fraction))))))
-
-(defun yascroll--scroll-to-fraction (window fraction)
-  "Scroll WINDOW so FRACTION of the buffer is centered vertically.
-Point is kept where it is when it stays visible, else moved to the new top."
-  (with-selected-window window
-    (let* ((lines (yascroll--buffer-line-count))
-           (window-lines (yascroll--window-line-height window))
-           (target (- (round (* fraction lines)) (/ window-lines 2)))
-           (target (max 0 (min (max 0 (1- lines)) target)))
-           (start (save-excursion
-                    (goto-char (point-min))
-                    (forward-line target)
-                    (line-beginning-position))))
-      (set-window-start window start)
-      ;; Keep point on-screen so redisplay does not snap the view back.
-      (unless (<= start (point) (or (window-end window t) (point-max)))
-        (goto-char start)))))
-
-(defun yascroll-mouse-drag (event)
-  "Navigate by clicking or dragging the scroll bar.
-EVENT is the initiating down-mouse event."
-  (interactive "e")
-  (when yascroll-enable-mouse
-    (when-let* ((target (yascroll--event-fraction (event-start event))))
-      (let ((window (car target)))
-        (yascroll--scroll-to-fraction window (cdr target))
-        (yascroll--do-update (window-buffer window))
-        (track-mouse
-          (let (ev)
-            (while (progn (setq ev (read-event))
-                          (mouse-movement-p ev))
-              (when-let* ((posn (event-start ev))
-                          (moved (yascroll--event-fraction posn)))
-                ;; Follow the drag even when the pointer wanders onto the
-                ;; thumb frame or back to the text window.
-                (when (eq (car moved) window)
-                  (yascroll--scroll-to-fraction window (cdr moved))
-                  (yascroll--do-update (window-buffer window)))))))))))
-
 ;;; Hooks
 
 (defun yascroll--before-change (&rest _)
-  "Hide the bar before a buffer modification."
-  (yascroll-hide-scroll-bar))
+  "Hide or trim the thumb before a buffer modification.
+When auto-hiding, an edit dismisses the bar (type-to-dismiss).  When
+the bar is meant to stay visible (`yascroll-delay-to-hide' nil), only
+overlay thumbs are removed -- their text anchors go stale mid-edit --
+while the viewport-fixed child frame stays put: hiding it here would
+toggle its NSWindow's visibility once per insertion in a buffer fed by
+a streaming process.  The after-change update repositions everything."
+  (if yascroll-delay-to-hide
+      (yascroll-hide-scroll-bar)
+    (yascroll--delete-thumb-overlays)))
 
 (defun yascroll--after-change (&rest _)
   "Re-show the bar after a modification when it is meant to stay visible."
@@ -1115,17 +1092,6 @@ Called during redisplay, so only a timer is scheduled here."
 
 ;;; Minor modes
 
-(defvar yascroll-bar-mode-map
-  (let ((map (make-sparse-keymap)))
-    (dolist (area '(left-fringe right-fringe right-margin))
-      ;; A `:filter' that returns nil (when mouse support is off) leaves the
-      ;; key effectively unbound, so it falls through to the global map.
-      (define-key map (vector area 'down-mouse-1)
-        `(menu-item "" yascroll-mouse-drag
-                    :filter ,(lambda (cmd) (and yascroll-enable-mouse cmd)))))
-    map)
-  "Keymap for `yascroll-bar-mode' (fringe/margin mouse navigation).")
-
 (defun yascroll--any-buffer-enabled-p ()
   "Return non-nil when some live buffer has `yascroll-bar-mode' on."
   (cl-some (lambda (buffer)
@@ -1136,7 +1102,6 @@ Called during redisplay, so only a timer is scheduled here."
 (define-minor-mode yascroll-bar-mode
   "Toggle the yascroll scroll bar in this buffer."
   :group 'yascroll
-  :keymap yascroll-bar-mode-map
   (if yascroll-bar-mode
       (progn
         (add-hook 'before-change-functions #'yascroll--before-change nil t)
@@ -1179,6 +1144,12 @@ Called during redisplay, so only a timer is scheduled here."
   "Return non-nil when yascroll should turn on in BUFFER."
   (with-current-buffer buffer
     (and (not (minibufferp))
+         ;; Never in the shared bar buffer.  It only exists after the
+         ;; first thumb has shown, so re-enabling the global mode used to
+         ;; enroll it, making every thumb window grow a thumb of its own:
+         ;; measured 3 -> 61 -> 129 frames across repeated enables, which
+         ;; froze the session.
+         (not (eq (current-buffer) yascroll--bar-buffer))
          (not (memq major-mode yascroll-disabled-modes)))))
 
 (defun yascroll--turn-on ()

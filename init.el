@@ -152,6 +152,7 @@
   :demand t
   :config
   (setq yascroll-scroll-bar '(child-frame text-area))
+  (setq yascroll-delay-to-hide nil)
   (global-yascroll-bar-mode 1))
 
 ;;;; files
