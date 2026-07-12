@@ -494,21 +494,23 @@ Avoids an error on systems without aspell/hunspell/ispell."
   :straight t
   :defer t)
 
-(use-package highlight-indent-guides
-  :straight t
-  :defer t
-  :custom
-  (highlight-indent-guides-method 'fill)
-  (highlight-indent-guides-bitmap-function
-   'highlight-indent-guides--bitmap-line))
-
 (use-package indent-bars
   :straight t
   :defer t
+  :hook ((prog-mode text-mode) . indent-bars-mode)
   :custom
-  ;; NS stipple support is only complete as of Emacs 31
-  (indent-bars-prefer-character (< emacs-major-version 31))
-  (indent-bars-treesit-support t))
+  (indent-bars-pattern ".")
+  (indent-bars-width-frac 0.1)
+  ;; VSCode-style guides: dim monochrome bars everywhere, brighter inside the
+  ;; treesit scope around point, brightest at point's own depth.
+  (indent-bars-color '(default :blend 0.1))
+  (indent-bars-color-by-depth nil)
+  (indent-bars-highlight-current-depth '(:blend 0.3))
+  (indent-bars-treesit-support t)
+  ;; `in-scope' means the ts- variables style in-scope bars, and the plain
+  ;; variables above style out-of-scope bars (and non-treesit buffers).
+  (indent-bars-ts-styling-scope 'in-scope)
+  (indent-bars-ts-color '(inherit unspecified :blend 0.1)))
 
 (use-package hl-todo
   :straight t
@@ -1194,7 +1196,6 @@ when it holds a Lean buffer, render DOCS in the *lean-infoview* side window
   "tn" 'popper-cycle
   "tp" 'popper-cycle-backwards
   "tr" 'treemacs
-  "ti" 'highlight-indent-guides-mode
   "tl" 'display-line-numbers-mode
   "tc" 'olivetti-mode)
 
