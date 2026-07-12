@@ -153,6 +153,26 @@
   (setq yascroll-delay-to-hide nil)
   (global-yascroll-bar-mode 1))
 
+;;;; minimap
+;; Local child-frame minimap (lisp/minimap-frame.el).  Floats over the
+;; window's right edge instead of occupying a side window, so it cannot
+;; collide with the [code | infoview | shell] layout, popper, or
+;; display-buffer rules.  Content is an indirect buffer sharing the base
+;; buffer's text and font-lock properties at a tiny face height;
+;; mouse-1 on the minimap jumps the window there.
+(use-package minimap-frame
+  :demand t
+  :custom
+  ;; Same editing-mode trio as vi-tilde-fringe: prog alone would skip
+  ;; markdown/org (text-mode descendants).
+  (minimap-frame-global-modes '(prog-mode text-mode conf-mode))
+  ;; Abstract block font (~/Library/Fonts/Minimap.ttf, from
+  ;; https://github.com/davestewart/minimap-font): real glyphs read as
+  ;; noise at minimap scale.  Falls back to the buffer font if missing.
+  (minimap-frame-font-family "Minimap")
+  :config
+  (global-minimap-frame-mode 1))
+
 ;;;; files
 (use-package files
   :config
@@ -555,7 +575,7 @@ Avoids an error on systems without aspell/hunspell/ispell."
   :config
   (add-hook 'magit-pre-refresh-hook 'diff-hl-magit-pre-refresh)
   (add-hook 'magit-post-refresh-hook 'diff-hl-magit-post-refresh)
-  (setq diff-hl-side 'right)
+  (setq diff-hl-side 'left)
   (global-diff-hl-mode))
 
 (use-package gitignore-templates
