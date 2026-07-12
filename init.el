@@ -697,6 +697,15 @@ Avoids an error on systems without aspell/hunspell/ispell."
   (setq ghostel-toggle-scoped t))
 
 ;;; lang
+;;;; treesit
+(use-package treesit-auto
+  :straight t
+  :custom (treesit-auto-install 'prompt)
+  :config
+  (setq treesit-font-lock-level 3)
+  (treesit-auto-add-to-auto-mode-alist 'all)
+  (global-treesit-auto-mode))
+
 ;;;; markdown
 (use-package markdown-mode
   :straight t
@@ -972,6 +981,8 @@ when it holds a Lean buffer, render DOCS in the *lean-infoview* side window
 (use-package rustic
   :straight t
   :defer t
+  :init
+  (setq rust-mode-treesitter-derive t)
   :config
   (setq rustic-lsp-client 'eglot
         rustic-format-on-save t))
