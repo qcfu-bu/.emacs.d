@@ -61,9 +61,9 @@
 ;; * The buffer line count is cached and invalidated by the modification
 ;;   tick, so scrolling large buffers does not re-count lines every event.
 ;; * `line-spacing'-aware, pixel-based window-height measurement.
-;; * The child-frame thumb borrows the current theme's mode line
-;;   background -- the theme's chrome color -- and refreshes on theme
-;;   changes; overlay faces adapt to light/dark.
+;; * The child-frame thumb color is derived from the current theme
+;;   (background blended toward foreground, `yascroll-thumb-blend') and
+;;   refreshes on theme changes; overlay faces adapt to light/dark.
 ;; * Naming modernized to dashes, `lexical-binding', Emacs 27.1+.
 ;; * A transient rendering error hides the bar instead of tearing the whole
 ;;   minor mode down.
@@ -121,9 +121,10 @@ that no font-fallback glyph can change the pixel height of its rows
 (defface yascroll-thumb-child-frame
   '((t nil))
   "Face overriding the child-frame scroll bar thumb color.
-By default the thumb borrows the current theme's mode line background
-\(see `yascroll--thumb-color').  Give this face an explicit background
-to use a fixed color instead."
+By default the thumb color is derived from the current theme (the
+`default' face background blended toward its foreground by
+`yascroll-thumb-blend').  Give this face an explicit background to use
+a fixed color instead."
   :group 'yascroll)
 
 (defcustom yascroll-scroll-bar
@@ -182,11 +183,11 @@ monospace font); the thumb is aligned using its realized width."
   :group 'yascroll)
 
 (defcustom yascroll-thumb-blend 0.4
-  "Fallback contrast for the derived thumb color.
-Only used when the mode line has no background to borrow (see
-`yascroll--thumb-color'): the thumb becomes the theme background
-blended toward its foreground by this fraction, 0.0 invisible (pure
-background) to 1.0 maximal (pure foreground)."
+  "How strongly the derived thumb color contrasts with the theme.
+The child-frame thumb color is the theme's background blended toward
+its foreground by this fraction: 0.0 is invisible (pure background),
+1.0 is maximal (pure foreground).  Only used while the
+`yascroll-thumb-child-frame' face has no explicit background."
   :type 'number
   :group 'yascroll)
 
@@ -567,17 +568,12 @@ end repeat"))))
 
 (defun yascroll--thumb-color ()
   "Background color for the child-frame thumb.
-Uses the current theme's mode line background (`mode-line-active',
-falling back to `mode-line') -- the theme's own chrome color -- so the
-thumb visually matches the mode line on any theme.  When the mode line
-has no background, falls back to blending the `default' background
-toward its foreground by `yascroll-thumb-blend'.  An explicit
-background on the `yascroll-thumb-child-frame' face overrides the
-derivation entirely."
+Derived from the current theme by blending the `default' face
+background toward its foreground (`yascroll-thumb-blend'), so any
+theme yields a harmonious thumb with a predictable amount of contrast.
+An explicit background on the `yascroll-thumb-child-frame' face
+overrides the derivation."
   (or (face-background 'yascroll-thumb-child-frame nil nil)
-      (face-background (if (facep 'mode-line-active) 'mode-line-active
-                         'mode-line)
-                       nil t)
       (let ((bg (face-background 'default nil t))
             (fg (face-foreground 'default nil t)))
         (if (and bg fg)

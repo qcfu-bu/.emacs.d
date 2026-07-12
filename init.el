@@ -88,16 +88,14 @@
     (set-face-attribute face nil :font "JetBrains Mono:pixelsize=14")))
 
 ;;;; theme
-(use-package modus-themes
-  :straight t
-  :config (load-theme 'modus-operandi-tinted t))
-
-;; Deferred: no doom theme is active (we use `modus-operandi'), so there is no
-;; reason to load doom-themes at startup. Its theme files stay on
-;; `custom-theme-load-path', so `consult-theme' can still pull them in on demand.
 (use-package doom-themes
   :straight t
-  :defer t)
+  :config (load-theme 'doom-one t))
+
+(use-package solaire-mode
+  :straight t
+  :config 
+  (solaire-global-mode t))
 
 ;;;; modeline
 (use-package doom-modeline
