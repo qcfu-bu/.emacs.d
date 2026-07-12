@@ -332,11 +332,15 @@ changes the accessible portion."
             yascroll--line-count (count-lines (point-min) (point-max))))))
 
 (defun yascroll--window-line-height (&optional window)
-  "Number of text lines that fit in WINDOW, aware of `line-spacing'."
-  (if (display-graphic-p)
-      (max 1 (/ (window-body-height window t)
-                (yascroll--line-height (or window (selected-window)))))
-    (window-body-height window)))
+  "Number of text lines that fit in WINDOW, aware of `line-spacing'.
+Checks WINDOW's own frame for graphics capability, not the selected
+frame: in a daemon session serving graphical and tty frames at once,
+the two use different height units."
+  (let ((window (or window (selected-window))))
+    (if (display-graphic-p (window-frame window))
+        (max 1 (/ (window-body-height window t)
+                  (yascroll--line-height window)))
+      (window-body-height window))))
 
 (defun yascroll--line-edge-position ()
   "Return (POINT PADDING) for the text-area thumb.
@@ -370,6 +374,29 @@ PADDING is the number of columns from there to the edge."
       1
     (max 1 (floor (* (/ (float window-lines) buffer-lines) window-lines)))))
 
+(defun yascroll--window-overflows-p (window)
+  "Non-nil when WINDOW does not display the whole accessible buffer.
+Character-based, consistent with `yascroll--window-track-fraction':
+a physical line-count comparison gets both extremes wrong -- a fully
+folded buffer can fit on screen despite a huge line count (no thumb
+applies), and a wrapped-heavy buffer can overflow despite having fewer
+physical lines than the window has rows (a thumb does apply)."
+  (with-current-buffer (window-buffer window)
+    (or (> (window-start window) (point-min))
+        (< (min (or (window-end window) (point-max)) (point-max))
+           (point-max)))))
+
+(defun yascroll--window-span-fraction (window)
+  "Fraction of the accessible buffer WINDOW currently displays.
+Character-based; used to size the thumb when the line-based ratio is
+meaningless (wrapped-heavy buffers with fewer physical lines than the
+window has rows)."
+  (with-current-buffer (window-buffer window)
+    (let* ((total (max 1 (- (point-max) (point-min))))
+           (start (window-start window))
+           (end (min (or (window-end window) (point-max)) (point-max))))
+      (min 1.0 (max 0.0 (/ (max 0 (- end start)) (float total)))))))
+
 (defun yascroll--window-track-fraction (window)
   "Scroll position of WINDOW as a fraction (0.0 .. 1.0) of its track.
 Character-based, the same arithmetic as the mode line's percent
@@ -396,6 +423,9 @@ child-frame thumb glides under `pixel-scroll-precision-mode'."
            (start (window-start window))
            ;; Clamp: without a layout update `window-end' can trail
            ;; buffer edits (e.g. exceed `point-max' after a deletion).
+           ;; Right after such a deletion the clamped value equals
+           ;; `point-max', so the Bot snap below can fire one frame
+           ;; early; the next redisplay corrects it.
            (end (min (or (window-end window) (point-max)) (point-max)))
            (visible (max 0 (- end start)))
            (vscroll (window-vscroll window t)))
@@ -664,13 +694,19 @@ Return non-nil when the buffer overflows WINDOW (a thumb applies)."
   (with-current-buffer (window-buffer window)
     (let ((window-lines (yascroll--window-line-height window))
           (buffer-lines (yascroll--buffer-line-count)))
-      (when (< window-lines buffer-lines)
+      (when (yascroll--window-overflows-p window)
         (let* ((track-top (nth 1 (window-inside-pixel-edges window)))
                (track-height (window-body-height window t))
                (right (nth 2 (window-pixel-edges window)))
                (fraction (yascroll--window-track-fraction window))
+               ;; Line-based size (stable while scrolling) when the
+               ;; line ratio is meaningful; character span for
+               ;; wrapped-heavy buffers where it is not.
+               (size-fraction (if (< window-lines buffer-lines)
+                                  (/ (float window-lines) buffer-lines)
+                                (yascroll--window-span-fraction window)))
                (key (list track-top track-height right fraction
-                          window-lines buffer-lines)))
+                          size-fraction)))
           (unless (and (equal key (window-parameter window
                                                     'yascroll--bar-geometry))
                        (equal (cdr (frame-parameter frame
@@ -684,9 +720,7 @@ Return non-nil when the buffer overflows WINDOW (a thumb applies)."
               (yascroll--cancel-fade))
             (yascroll--schedule-hide)
             (let* ((thumb-height (max yascroll-child-frame-min-height
-                                      (round (* track-height
-                                                (/ (float window-lines)
-                                                   buffer-lines)))))
+                                      (round (* track-height size-fraction))))
                    (thumb-height (min thumb-height track-height))
                    (frame-resize-pixelwise t))
               (yascroll--restore-thumb-color frame)
@@ -723,8 +757,7 @@ Return non-nil when a thumb was shown."
     ;; the frame as a side effect.
     (when (and (not (frame-parameter (window-frame window)
                                      'yascroll--parent-window))
-               (< (yascroll--window-line-height window)
-                  (yascroll--buffer-line-count)))
+               (yascroll--window-overflows-p window))
       (when (yascroll--position-bar-frame window (yascroll--bar-frame window))
         (let ((frame (window-parameter window 'yascroll--bar-frame)))
           (unless (frame-visible-p frame)
@@ -989,10 +1022,17 @@ Return non-nil when a child-frame thumb was shown."
         (buffer-lines (yascroll--buffer-line-count)))
     (if (eq scroll-bar 'child-frame)
         (yascroll--show-child-frame)
-      (when (and scroll-bar (< window-lines buffer-lines))
-        (let* ((thumb-size (yascroll--compute-thumb-size
-                            window-lines buffer-lines))
-               (thumb-size (min thumb-size window-lines))
+      (when (and scroll-bar
+                 (yascroll--window-overflows-p (selected-window)))
+        (let* ((thumb-size (if (< window-lines buffer-lines)
+                               (yascroll--compute-thumb-size
+                                window-lines buffer-lines)
+                             ;; Wrapped-heavy buffer: size from the
+                             ;; displayed character span instead.
+                             (round (* window-lines
+                                       (yascroll--window-span-fraction
+                                        (selected-window))))))
+               (thumb-size (max 1 (min thumb-size (1- window-lines))))
                ;; The thumb is drawn on screen rows, so map the track
                ;; fraction onto the window's row grid.
                (thumb-window-line (round (* (- window-lines thumb-size)
@@ -1013,6 +1053,10 @@ Return non-nil when a child-frame thumb was shown."
   (list (mapcar (lambda (window)
                   (list window
                         (window-start window)
+                        ;; `window-end' catches display-only changes
+                        ;; (folding) that move neither `window-start'
+                        ;; nor the modification tick.
+                        (window-end window)
                         (window-vscroll window t)
                         (window-body-height window t)))
                 (get-buffer-window-list (current-buffer) nil t))
@@ -1176,6 +1220,13 @@ Called during redisplay, so only a timer is scheduled here."
                  #'yascroll--after-window-configuration-change t)
     (yascroll--sync-windows)
     (unless (yascroll--any-buffer-enabled-p)
+      ;; Last enabled buffer: no hook remains to clean up afterwards, so
+      ;; sweep every thumb frame -- including ones parked on windows
+      ;; that now show other buffers, which the per-buffer deletion
+      ;; above cannot reach.
+      (dolist (frame (frame-list))
+        (when (frame-parameter frame 'yascroll--parent-window)
+          (delete-frame frame t)))
       (remove-hook 'window-buffer-change-functions
                    #'yascroll--on-window-buffer-change)
       (remove-hook 'window-size-change-functions
