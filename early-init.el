@@ -1,4 +1,5 @@
-;; Raise the GC threshold for the duration of startup so the garbage collector
+;;; early-init.el --- Early initialization for Emacs -*- lexical-binding: t; -*-
+;; Raise the GC threshold for the duration of startup so the garbage collector 
 ;; does not fire repeatedly while packages load. `gcmh' (configured in init.el)
 ;; takes ownership of `gc-cons-threshold' once it activates, so this only covers
 ;; the small bootstrap window before then.
