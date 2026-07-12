@@ -414,7 +414,7 @@ Avoids an error on systems without aspell/hunspell/ispell."
         treemacs-sorting 'alphabetic-case-insensitive-asc
         treemacs-width 30)
   :config
-  (treemacs-follow-mode -1)
+  (treemacs-project-follow-mode t)
   (treemacs-git-mode 'simple)
   (treemacs-hide-gitignored-files-mode 1))
 
