@@ -104,6 +104,16 @@ minimap look."
   :type 'number
   :group 'minimap-frame)
 
+(defcustom minimap-frame-text-dim 0.0
+  "Fraction to fade minimap text toward the background, 0.0 .. 1.0.
+Faces have no opacity, so \"transparent text\" is emulated by
+remapping every face's explicit foreground toward the default
+background by this fraction, buffer-locally in the mini buffer.  0.0
+leaves text at full strength; around 0.2 lowers the minimap's visual
+weight without flattening the syntax colors."
+  :type 'number
+  :group 'minimap-frame)
+
 (defcustom minimap-frame-font-family nil
   "Font family for minimap text, or nil to inherit the buffer's font.
 Real glyph shapes read as dense noise at minimap sizes; an abstract
@@ -203,6 +213,51 @@ is bounded by one minimap-full of text per scroll."
   (let ((buffer (or buffer (current-buffer))))
     (or (buffer-base-buffer buffer) buffer)))
 
+(defun minimap-frame--blend (from to fraction)
+  "Blend color FROM toward color TO by FRACTION (0.0 .. 1.0)."
+  (let ((f (color-values from))
+        (h (color-values to)))
+    (if (and f h)
+        (apply #'format "#%04x%04x%04x"
+               (cl-mapcar (lambda (a b)
+                            (round (+ (* a (- 1.0 fraction)) (* b fraction))))
+                          f h))
+      from)))
+
+(defun minimap-frame--apply-remaps (mini)
+  "Install MINI's buffer-local face remappings: shrink plus optional dim.
+The four base faces are remapped to the minimap font and scale
+\(faces built on `fixed-pitch'/`variable-pitch' often carry explicit
+pixel fonts that a `default' remap alone leaves full-size).  When
+`minimap-frame-text-dim' is positive, every face with an explicit
+foreground is additionally remapped toward the default background --
+the closest Emacs equivalent of lowering text opacity, computed here
+and re-computed on theme changes."
+  (with-current-buffer mini
+    (let ((shrink `(,@(and minimap-frame-font-family
+                           (find-font (font-spec
+                                       :family minimap-frame-font-family))
+                           (list :family minimap-frame-font-family))
+                    :height ,minimap-frame-scale))
+          (remaps
+           (when (> minimap-frame-text-dim 0.0)
+             (let ((bg (face-background 'default nil t))
+                   entries)
+               (dolist (face (face-list))
+                 (let ((fg (ignore-errors (face-foreground face nil nil))))
+                   (when (and (stringp fg) (stringp bg))
+                     (push (list face :foreground
+                                 (minimap-frame--blend
+                                  fg bg minimap-frame-text-dim))
+                           entries))))
+               entries))))
+      (dolist (base '(default fixed-pitch fixed-pitch-serif variable-pitch))
+        (let ((entry (assq base remaps)))
+          (if entry
+              (setcdr entry (append shrink (cdr entry)))
+            (push (cons base shrink) remaps))))
+      (setq-local face-remapping-alist remaps))))
+
 (defun minimap-frame--mini-buffer (base)
   "Return BASE's minimap indirect buffer, creating it if needed."
   (with-current-buffer base
@@ -211,24 +266,9 @@ is bounded by one minimap-full of text per scroll."
                    base
                    (generate-new-buffer-name
                     (format " *minimap: %s*" (buffer-name base))))))
+        (minimap-frame--apply-remaps mini)
         (with-current-buffer mini
-          ;; Independent buffer-locals: shrink the text, strip chrome.
-          ;; `fixed-pitch'/`variable-pitch' are remapped alongside
-          ;; `default': faces built on them often carry explicit pixel
-          ;; fonts (this config does), which a `default' remap alone
-          ;; leaves full-size -- e.g. markdown code blocks.  The
-          ;; abstract minimap font, when configured and installed,
-          ;; replaces glyph shapes with clean blocks.
-          (let ((shrink `(,@(and minimap-frame-font-family
-                                 (find-font (font-spec
-                                             :family minimap-frame-font-family))
-                                 (list :family minimap-frame-font-family))
-                          :height ,minimap-frame-scale)))
-            (setq-local face-remapping-alist
-                        `((default ,@shrink)
-                          (fixed-pitch ,@shrink)
-                          (fixed-pitch-serif ,@shrink)
-                          (variable-pitch ,@shrink))))
+          ;; Independent buffer-locals: strip chrome.
           (setq-local line-spacing 0
                       mode-line-format nil
                       header-line-format nil
@@ -689,11 +729,14 @@ hook only hides them, so delete them here."
     (minimap-frame--delete window)))
 
 (defun minimap-frame--on-theme-change (_theme)
-  "Refresh minimap frame backgrounds after a theme change."
+  "Refresh minimap frame backgrounds and dim remaps after a theme change."
   (dolist (frame (frame-list))
     (when (frame-parameter frame 'minimap-frame--parent-window)
       (set-frame-parameter frame 'background-color
-                           (face-background 'default nil t)))))
+                           (face-background 'default nil t))
+      (let ((mini (window-buffer (frame-root-window frame))))
+        (when (buffer-live-p mini)
+          (minimap-frame--apply-remaps mini))))))
 
 ;;; Minor modes
 

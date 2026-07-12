@@ -160,18 +160,19 @@
 ;; display-buffer rules.  Content is an indirect buffer sharing the base
 ;; buffer's text and font-lock properties at a tiny face height;
 ;; mouse-1 on the minimap jumps the window there.
-(use-package minimap-frame
-  :demand t
-  :custom
-  ;; Same editing-mode trio as vi-tilde-fringe: prog alone would skip
-  ;; markdown/org (text-mode descendants).
-  (minimap-frame-global-modes '(prog-mode text-mode conf-mode))
-  ;; Abstract block font (~/Library/Fonts/Minimap.ttf, from
-  ;; https://github.com/davestewart/minimap-font): real glyphs read as
-  ;; noise at minimap scale.  Falls back to the buffer font if missing.
-  (minimap-frame-font-family "Minimap")
-  :config
-  (global-minimap-frame-mode 1))
+;; (use-package minimap-frame
+;;   :demand t
+;;   :custom
+;;   ;; Same editing-mode trio as vi-tilde-fringe: prog alone would skip
+;;   ;; markdown/org (text-mode descendants).
+;;   (minimap-frame-global-modes '(prog-mode text-mode conf-mode))
+;;   ;; Abstract block font (~/Library/Fonts/Minimap.ttf, from
+;;   ;; https://github.com/davestewart/minimap-font): real glyphs read as
+;;   ;; noise at minimap scale.  Falls back to the buffer font if missing.
+;;   (minimap-frame-font-family "Minimap")
+;;   ;; Fade minimap text toward the background a bit; full-strength
+;;   ;; syntax colors at block scale draw too much attention.
+;;   (minimap-frame-text-dim 0.2))
 
 ;;;; files
 (use-package files
