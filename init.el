@@ -594,10 +594,13 @@ Avoids an error on systems without aspell/hunspell/ispell."
   ;; so the first invocation after killing a shell looks like nothing
   ;; happened (`latest' would instead auto-resume the previous session).
   (setq agent-shell-session-strategy 'latest)
+  ;; Side window at the frame edge: stays at the far right even when the Lean
+  ;; infoview (a normal window in the main area) is open, giving
+  ;; [code | infoview | shell].
   (setq agent-shell-display-action
         '(display-buffer-in-side-window
           (side . right)
-          (window-width . 0.4)))
+          (window-width . 0.3)))
   (defun my/agent-shell-toggle-or-start ()
     "Toggle the agent shell, starting a new claude-code one if none exists."
     (interactive)
@@ -645,12 +648,11 @@ Avoids an error on systems without aspell/hunspell/ispell."
   (add-to-list 'eglot-server-programs '((tex-mode context-mode texinfo-mode bibtex-mode) . ("texlab")))
   (add-to-list 'eglot-server-programs '((python-mode python-ts-mode) . ("pyright-langserver" "--stdio")))
   (add-to-list 'eglot-server-programs '((c-mode c-ts-mode c++-mode c++-ts-mode objc-mode) . ("clangd")))
-  ;; (add-to-list 'eglot-server-programs '((rust-mode rust-ts-mode) .
-  ;;                                       ("rust-analyzer" :initializationOptions
-  ;;                                        ( :procMacro (:enable t)
-  ;;                                          :cargo ( :buildScripts (:enable t)
-  ;;                                                   :features "all")))))
-  )
+  (add-to-list 'eglot-server-programs '((rust-mode rust-ts-mode) .
+                                        ("rust-analyzer" :initializationOptions
+                                         (:procMacro (:enable t)
+                                          :cargo (:buildScripts (:enable t)
+                                                  :features "all"))))))
 
 ;;;; compile
 (use-package compile
@@ -900,10 +902,13 @@ fontified by nael."
           (goto-char (point-min))))
       buffer))
 
-  (defun nael-infoview-show ()
-    "Pop up the Lean infoview on the right without changing its contents."
+  (defun nael-infoview-show (&optional window)
+    "Pop up the Lean infoview to the right of WINDOW without changing its contents.
+WINDOW defaults to the selected window; it anchors the
+`display-buffer-in-direction' split (see `display-buffer-alist' below)."
     (interactive)
-    (display-buffer (nael-infoview--buffer)))
+    (display-buffer (nael-infoview--buffer)
+                    (and window `(nil (window . ,window)))))
 
   (defun nael--in-lean-window-p ()
     "Non-nil when the selected window is showing a Lean buffer."
@@ -914,7 +919,7 @@ fontified by nael."
     "Redirect ElDoc rendering to the Lean infoview when editing a Lean buffer.
 ORIG-FN is `eldoc-display-in-buffer'.  ElDoc renders asynchronously, but the
 selected window still shows the Lean buffer at that point, so we key off it:
-when it holds a Lean buffer, render DOCS in the *lean-infoview* side window
+when it holds a Lean buffer, render DOCS in the *lean-infoview* window
 \(re-showing it if hidden); otherwise call ORIG-FN unchanged."
     (if (nael--in-lean-window-p)
         (let ((buffer (nael-infoview--render docs)))
@@ -932,15 +937,22 @@ when it holds a Lean buffer, render DOCS in the *lean-infoview* side window
       (run-with-timer
        0 nil
        (lambda ()
-         (when (and (buffer-live-p source) (get-buffer-window source t))
-           (nael-infoview-show))))))
+         ;; Anchor the split on the Lean buffer's window explicitly: by the
+         ;; time the timer fires the selected window may be elsewhere.
+         (when-let* (((buffer-live-p source))
+                     (window (get-buffer-window source t)))
+           (nael-infoview-show window))))))
 
+  ;; A normal window in the main area (not a side window): right-side side
+  ;; windows with different slots stack vertically, so sharing the side with
+  ;; agent-shell could never give [code | infoview | shell].  In-direction
+  ;; keeps the infoview glued to the right of the Lean window while
+  ;; agent-shell docks at the frame edge beyond it.
   (add-to-list 'display-buffer-alist
                '("\\`\\*lean-infoview\\*\\'"
-                 (display-buffer-in-side-window)
-                 (side . right)
-                 (slot . 0)
-                 (window-width . 0.4)
+                 (display-buffer-reuse-window display-buffer-in-direction)
+                 (direction . right)
+                 (window-width . 0.3)
                  (preserve-size . (t . nil))
                  (dedicated . t)
                  (window-parameters . ((no-delete-other-windows . t)))))
