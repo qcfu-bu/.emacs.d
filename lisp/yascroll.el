@@ -191,7 +191,7 @@ its foreground by this fraction: 0.0 is invisible (pure background),
   :type 'number
   :group 'yascroll)
 
-(defcustom yascroll-child-frame-alpha 0.8
+(defcustom yascroll-child-frame-alpha 0.9
   "Opacity of the child-frame thumb, 0.0 (invisible) to 1.0 (opaque).
 The thumb is a real window, so anything below 1.0 faintly shows the
 text beneath it.  Nil means fully opaque.  Applied when a thumb frame
