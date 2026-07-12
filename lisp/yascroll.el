@@ -60,6 +60,12 @@
 ;;   skips redundant redraws during scroll event floods.
 ;; * The buffer line count is cached and invalidated by the modification
 ;;   tick, so scrolling large buffers does not re-count lines every event.
+;; * Thumb geometry splits its sources: the SIZE comes from that stable
+;;   line count (cheap, fixed while scrolling), while the POSITION is
+;;   character-based like the mode line's `%p' (`window-start' over
+;;   buffer size, snapped exactly to the track ends at Top/Bot).
+;;   Folded or wrapped lines can therefore shade the thumb's size but
+;;   can never desync its position.
 ;; * `line-spacing'-aware, pixel-based window-height measurement.
 ;; * The child-frame thumb color is derived from the current theme
 ;;   (background blended toward foreground, `yascroll-thumb-blend') and
@@ -364,12 +370,45 @@ PADDING is the number of columns from there to the edge."
       1
     (max 1 (floor (* (/ (float window-lines) buffer-lines) window-lines)))))
 
-(defun yascroll--compute-thumb-window-line (window-lines buffer-lines scroll-top)
-  "Top of the thumb as a line offset within the window.
-Derived from WINDOW-LINES, BUFFER-LINES and SCROLL-TOP."
-  (if (zerop buffer-lines)
-      0
-    (floor (* window-lines (/ (float scroll-top) buffer-lines)))))
+(defun yascroll--window-track-fraction (window)
+  "Scroll position of WINDOW as a fraction (0.0 .. 1.0) of its track.
+Character-based, the same arithmetic as the mode line's percent
+position (`%p'): the numerator is how many characters lie above
+`window-start', and the denominator is how far `window-start' can
+still travel -- the buffer size minus the window-full that remains
+visible at the end, with the live `window-end' span standing in for
+that final window-full.  Characters are what redisplay actually
+scrolls, so folded (invisible) and wrapped lines cannot desync the
+thumb the way physical line counts can; in particular, wrapped-heavy
+buffers (few physical lines, many screen rows) arrive at 1.0 exactly
+when the buffer end scrolls into view, not before.
+
+The fraction snaps to exactly 0.0/1.0 whenever WINDOW really displays
+the buffer's first or last position (the mode line's Top/Bot).
+`window-end' is read without forcing a layout update: mid-scroll it
+can be one rendered frame stale, which wiggles the denominator by at
+most a window-full of characters -- negligible against the whole
+buffer, and the snaps keep the extremes exact.  Sub-line pixel
+vscroll is folded in via the window's own character density so the
+child-frame thumb glides under `pixel-scroll-precision-mode'."
+  (with-current-buffer (window-buffer window)
+    (let* ((total (- (point-max) (point-min)))
+           (start (window-start window))
+           ;; Clamp: without a layout update `window-end' can trail
+           ;; buffer edits (e.g. exceed `point-max' after a deletion).
+           (end (min (or (window-end window) (point-max)) (point-max)))
+           (visible (max 0 (- end start)))
+           (vscroll (window-vscroll window t)))
+      (cond ((>= end (point-max)) 1.0)
+            ((and (<= start (point-min)) (zerop vscroll)) 0.0)
+            (t
+             (let ((scrollable (max 1 (- total visible)))
+                   (vscroll-chars
+                    (* visible
+                       (/ vscroll
+                          (float (max 1 (window-body-height window t)))))))
+               (min 1.0 (max 0.0 (/ (+ (- start (point-min)) vscroll-chars)
+                                    (float scrollable))))))))))
 
 ;;; Thumb overlays
 
@@ -586,30 +625,6 @@ overrides the derivation."
     (when (frame-parameter frame 'yascroll--parent-window)
       (yascroll--restore-thumb-color frame))))
 
-(defun yascroll--window-scroll-top (window)
-  "Lines between `point-min' and WINDOW's start, cached incrementally.
-The cache lives in a window parameter so the per-redisplay repositioning
-of the child-frame thumb only counts the lines scrolled since the last
-call, not the whole buffer prefix."
-  (let* ((start (window-start window))
-         (tick (buffer-chars-modified-tick))
-         (cache (window-parameter window 'yascroll--scroll-top))
-         ;; cache = (START TICK PMIN LINES)
-         (lines
-          (if (and cache
-                   (= (nth 1 cache) tick)
-                   (= (nth 2 cache) (point-min)))
-              (let ((old-start (nth 0 cache))
-                    (old-lines (nth 3 cache)))
-                (cond ((= old-start start) old-lines)
-                      ((< old-start start)
-                       (+ old-lines (count-lines old-start start)))
-                      (t (max 0 (- old-lines (count-lines start old-start))))))
-            (count-lines (point-min) start))))
-    (set-window-parameter window 'yascroll--scroll-top
-                          (list start tick (point-min) lines))
-    lines))
-
 (defun yascroll--line-height (window)
   "Pixel height of a default line in WINDOW, safe outside redisplay."
   (max 1 (or (window-default-line-height window)
@@ -653,9 +668,8 @@ Return non-nil when the buffer overflows WINDOW (a thumb applies)."
         (let* ((track-top (nth 1 (window-inside-pixel-edges window)))
                (track-height (window-body-height window t))
                (right (nth 2 (window-pixel-edges window)))
-               (scroll-top (yascroll--window-scroll-top window))
-               (vscroll (window-vscroll window t))
-               (key (list track-top track-height right scroll-top vscroll
+               (fraction (yascroll--window-track-fraction window))
+               (key (list track-top track-height right fraction
                           window-lines buffer-lines)))
           (unless (and (equal key (window-parameter window
                                                     'yascroll--bar-geometry))
@@ -669,16 +683,11 @@ Return non-nil when the buffer overflows WINDOW (a thumb applies)."
             (when yascroll--fade-timer
               (yascroll--cancel-fade))
             (yascroll--schedule-hide)
-            (let* ((line-height (yascroll--line-height window))
-                   (thumb-height (max yascroll-child-frame-min-height
+            (let* ((thumb-height (max yascroll-child-frame-min-height
                                       (round (* track-height
                                                 (/ (float window-lines)
                                                    buffer-lines)))))
                    (thumb-height (min thumb-height track-height))
-                   (denominator (max 1 (- buffer-lines window-lines)))
-                   (fraction (min 1.0 (/ (+ scroll-top
-                                            (/ vscroll (float line-height)))
-                                         denominator)))
                    (frame-resize-pixelwise t))
               (yascroll--restore-thumb-color frame)
               (set-frame-size frame yascroll-child-frame-width thumb-height t)
@@ -981,21 +990,22 @@ Return non-nil when a child-frame thumb was shown."
     (if (eq scroll-bar 'child-frame)
         (yascroll--show-child-frame)
       (when (and scroll-bar (< window-lines buffer-lines))
-        (let* ((scroll-top (count-lines (point-min) (window-start)))
-               (thumb-window-line (yascroll--compute-thumb-window-line
-                                   window-lines buffer-lines scroll-top))
-               (thumb-buffer-line (+ scroll-top thumb-window-line))
-               (thumb-size (yascroll--compute-thumb-size
+        (let* ((thumb-size (yascroll--compute-thumb-size
                             window-lines buffer-lines))
+               (thumb-size (min thumb-size window-lines))
+               ;; The thumb is drawn on screen rows, so map the track
+               ;; fraction onto the window's row grid.
+               (thumb-window-line (round (* (- window-lines thumb-size)
+                                            (yascroll--window-track-fraction
+                                             (selected-window)))))
                (make-thumb-overlay
                 (cl-ecase scroll-bar
                   (left-fringe  #'yascroll--make-thumb-overlay-left-fringe)
                   (right-fringe #'yascroll--make-thumb-overlay-right-fringe)
                   (right-margin #'yascroll--make-thumb-overlay-right-margin)
                   (text-area    #'yascroll--make-thumb-overlay-text-area))))
-          (when (<= thumb-buffer-line buffer-lines)
-            (yascroll--make-thumb-overlays make-thumb-overlay
-                                           thumb-window-line thumb-size))))
+          (yascroll--make-thumb-overlays make-thumb-overlay
+                                         thumb-window-line thumb-size)))
       nil)))
 
 (defun yascroll--render-signature ()
