@@ -53,3 +53,4 @@ url/*
 places
 bookmarks
 config.el
+tree-sitter
