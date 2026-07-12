@@ -502,6 +502,14 @@ Avoids an error on systems without aspell/hunspell/ispell."
   (highlight-indent-guides-bitmap-function
    'highlight-indent-guides--bitmap-line))
 
+(use-package indent-bars
+  :straight t
+  :defer t
+  :custom
+  ;; NS stipple support is only complete as of Emacs 31
+  (indent-bars-prefer-character (< emacs-major-version 31))
+  (indent-bars-treesit-support t))
+
 (use-package hl-todo
   :straight t
   :hook ((prog-mode text-mode) . hl-todo-mode)
