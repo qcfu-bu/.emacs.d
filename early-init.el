@@ -22,6 +22,49 @@
 (push '(tool-bar-lines . 0)   default-frame-alist)
 (push '(vertical-scroll-bars) default-frame-alist)
 
+;; Open every frame maximized, with no beep and no visible resize.
+;;
+;; `(fullscreen . maximized)' in `default-frame-alist' (Spacemacs' approach)
+;; beeps on macOS: the NS port applies it with -[NSWindow performZoom:]
+;; while the window is still being ordered on screen, and AppKit beeps when
+;; asked to zoom a window it does not yet consider zoomable. Setting the
+;; parameter from a hook once the frame is visible is silent, but shows the
+;; default-size frame for a split second before it grows. So instead:
+;; create GUI frames invisible, size them to the monitor's work area with
+;; plain geometry calls (AppKit zoom is never involved, so nothing can
+;; beep), and only then show them — already full-size.
+(defun my/frame-fill-workarea (frame)
+  "Size FRAME to exactly fill its monitor's work area."
+  (let ((wa (frame-monitor-workarea frame)))
+    (set-frame-position frame (nth 0 wa) (nth 1 wa))
+    (set-frame-size frame
+                    (- (nth 2 wa) (- (frame-outer-width frame)
+                                     (frame-text-width frame)))
+                    (- (nth 3 wa) (- (frame-outer-height frame)
+                                     (frame-text-height frame)))
+                    t)))
+
+(define-advice make-frame (:around (fn &optional params) my/open-maximized)
+  "Create top-level GUI frames invisible, size to work area, then show."
+  (if (or (assq 'visibility params)   ; caller manages visibility (corfu, ...)
+          (assq 'parent-frame params) ; child frames size themselves
+          (assq 'tty params))         ; terminal client frames
+      (funcall fn params)
+    (let ((frame (funcall fn (cons '(visibility . nil) params))))
+      (unwind-protect
+          (when (display-graphic-p frame)
+            (my/frame-fill-workarea frame))
+        (make-frame-visible frame))
+      frame)))
+
+;; A plain `emacs' launch creates the initial frame in C, bypassing
+;; `make-frame'. That frame is already visible by `window-setup-hook' time,
+;; so the silent-but-late maximize is the best available for it.
+(add-hook 'window-setup-hook
+          (lambda ()
+            (when (display-graphic-p)
+              (set-frame-parameter nil 'fullscreen 'maximized))))
+
 ;; Resizing the Emacs frame can be a terribly expensive part of changing the
 ;; font. By inhibiting this, we easily halve startup times with fonts that are
 ;; larger than the system default.
