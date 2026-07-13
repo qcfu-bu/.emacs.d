@@ -617,7 +617,7 @@ Avoids an error on systems without aspell/hunspell/ispell."
   ;; session strategy defers showing the buffer until a session is chosen,
   ;; so the first invocation after killing a shell looks like nothing
   ;; happened (`latest' would instead auto-resume the previous session).
-  (setq agent-shell-session-strategy 'latest)
+  (setq agent-shell-session-strategy 'prompt)
   ;; Side window at the frame edge: stays at the far right even when the Lean
   ;; infoview (a normal window in the main area) is open, giving
   ;; [code | infoview | shell].
