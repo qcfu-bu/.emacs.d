@@ -285,7 +285,11 @@ and re-computed on theme changes."
           (font-lock-mode -1)
           ;; Keep sibling packages out of the mini buffer: yascroll
           ;; thumbs on minimap frames were the exact recursion class
-          ;; yascroll 1.7.2 fixed for its own bar buffer.
+          ;; yascroll 1.7.2 fixed for its own bar buffer.  Set the
+          ;; exclusion flag too, or `global-yascroll-bar-mode' re-enables
+          ;; here on its next buffer sweep and strands a thumb over the
+          ;; minimap.
+          (setq-local yascroll-exclude t)
           (when (bound-and-true-p yascroll-bar-mode)
             (yascroll-bar-mode -1))
           (use-local-map minimap-frame--mini-keymap))

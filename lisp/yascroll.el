@@ -188,12 +188,14 @@ monospace font); the thumb is aligned using its realized width."
   :type 'integer
   :group 'yascroll)
 
-(defcustom yascroll-thumb-blend 0.4
+(defcustom yascroll-thumb-blend 0.6
   "How strongly the derived thumb color contrasts with the theme.
 The child-frame thumb color is the theme's background blended toward
 its foreground by this fraction: 0.0 is invisible (pure background),
-1.0 is maximal (pure foreground).  Only used while the
-`yascroll-thumb-child-frame' face has no explicit background."
+1.0 is maximal (pure foreground).  Blending toward the foreground
+always increases contrast against the background, so the derived
+thumb stays visible under any theme, light or dark.  Only used while
+the `yascroll-thumb-child-frame' face has no explicit background."
   :type 'number
   :group 'yascroll)
 
@@ -609,6 +611,10 @@ end repeat"))))
                  (no-accept-focus . t)
                  (no-focus-on-map . t)
                  (no-other-frame . t)
+                 ;; Stay above sibling child frames: a minimap (or any
+                 ;; other package's child frame) created later would
+                 ;; otherwise stack on top and occlude the thumb.
+                 (z-group . above)
                  (unsplittable . t)
                  (minibuffer . nil)
                  (min-width . 0)
@@ -751,12 +757,14 @@ Return non-nil when the buffer overflows WINDOW (a thumb applies)."
   "Position and show the child-frame thumb for the selected window.
 Return non-nil when a thumb was shown."
   (let ((window (selected-window)))
-    ;; Two guards, both load-bearing: a window living in a thumb frame
-    ;; must never grow a thumb of its own (recursion), and the overflow
+    ;; Two guards, both load-bearing: a window in ANY child frame must
+    ;; never grow a thumb (its own thumb frame -> recursion; another
+    ;; package's widget child frame such as a minimap, corfu, or
+    ;; posframe -> a stray thumb floating over that widget).  Thumbs
+    ;; belong only in real windows of top-level frames.  The overflow
     ;; decision must come before `yascroll--bar-frame', which creates
     ;; the frame as a side effect.
-    (when (and (not (frame-parameter (window-frame window)
-                                     'yascroll--parent-window))
+    (when (and (not (frame-parent (window-frame window)))
                (yascroll--window-overflows-p window))
       (when (yascroll--position-bar-frame window (yascroll--bar-frame window))
         (let ((frame (window-parameter window 'yascroll--bar-frame)))
@@ -811,15 +819,15 @@ changes are handled by the usual update paths and ignored here."
       (yascroll--restore-thumb-color frame))))
 
 (defun yascroll--cleanup-bar-frames ()
-  "Delete child-frame thumbs whose parent window is gone or is a thumb.
-The second case heals sessions poisoned by the runaway thumb-on-thumb
-recursion fixed in 1.7.2."
+  "Delete thumbs whose parent window is gone or lives in a child frame.
+The child-frame case heals both the thumb-on-thumb recursion fixed in
+1.7.2 and thumbs stranded over another package's widget child frame
+\(e.g. a minimap) -- neither should ever carry a thumb."
   (dolist (frame (frame-list))
     (let ((window (frame-parameter frame 'yascroll--parent-window)))
       (when (and window
                  (or (not (window-live-p window))
-                     (frame-parameter (window-frame window)
-                                      'yascroll--parent-window)))
+                     (frame-parent (window-frame window))))
         (delete-frame frame t)))))
 
 (defun yascroll--delete-bar-frame (window)
@@ -866,11 +874,28 @@ recursion fixed in 1.7.2."
       (face-background 'default nil t)
       "black"))
 
+(defun yascroll--apply-thumb-color (frame color)
+  "Paint FRAME's thumb COLOR through both channels that can render it.
+The frame parameter alone is not reliable: on NS, lazy face
+realization after a theme (re)enable repaints an already-visible child
+frame with the theme's default background at the next redisplay
+WITHOUT updating the frame parameter -- the parameter then reads
+correctly while the screen shows the theme color, and any
+parameter-equality guard skips the heal forever.  A `default' face
+remap in the bar buffer is merged on every redisplay on top of
+whatever the theme realizes, so it cannot be overpainted."
+  (when (buffer-live-p yascroll--bar-buffer)
+    (with-current-buffer yascroll--bar-buffer
+      (setq-local face-remapping-alist `((default :background ,color))))
+    (let ((window (frame-root-window frame)))
+      (when (window-live-p window)
+        (force-window-update window))))
+  (unless (equal color (frame-parameter frame 'background-color))
+    (set-frame-parameter frame 'background-color color)))
+
 (defun yascroll--restore-thumb-color (frame)
   "Reset FRAME's background to the full-strength thumb color."
-  (let ((color (yascroll--thumb-color)))
-    (unless (equal color (frame-parameter frame 'background-color))
-      (set-frame-parameter frame 'background-color color))))
+  (yascroll--apply-thumb-color frame (yascroll--thumb-color)))
 
 (defun yascroll--cancel-fade ()
   "Stop any fade animation and restore full thumb color."
@@ -910,8 +935,8 @@ overlay-based (overlay faces cannot be animated per window)."
                          (yascroll-hide-scroll-bar)
                        (let ((fraction (/ (float step) steps)))
                          (dolist (frame (yascroll--visible-bar-frames buffer))
-                           (set-frame-parameter
-                            frame 'background-color
+                           (yascroll--apply-thumb-color
+                            frame
                             (yascroll--blend-colors
                              (yascroll--thumb-color)
                              (yascroll--fade-target-color frame)
@@ -1234,10 +1259,17 @@ Called during redisplay, so only a timer is scheduled here."
       (when (boundp 'enable-theme-functions)
         (remove-hook 'enable-theme-functions #'yascroll--on-theme-change)))))
 
+(defvar-local yascroll-exclude nil
+  "When non-nil, `global-yascroll-bar-mode' never turns on in this buffer.
+Set it in buffers used only as another package's rendering surface
+\(e.g. a minimap's indirect buffer) so yascroll installs no hooks and
+draws no thumb there.")
+
 (defun yascroll--enabled-buffer-p (buffer)
   "Return non-nil when yascroll should turn on in BUFFER."
   (with-current-buffer buffer
     (and (not (minibufferp))
+         (not yascroll-exclude)
          ;; Never in the shared bar buffer.  It only exists after the
          ;; first thumb has shown, so re-enabling the global mode used to
          ;; enroll it, making every thumb window grow a thumb of its own:
