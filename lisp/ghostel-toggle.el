@@ -480,7 +480,7 @@ terminal after its project, so the project-scoped toggling of
 Falls back to the directory's base name when outside any project."
   (require 'project)
   (format "*ghostel[%s]*"
-          (if-let ((proj (project-current)))
+          (if-let* ((proj (project-current)))
               (project-name proj)
             (file-name-nondirectory
              (directory-file-name default-directory)))))
