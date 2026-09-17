@@ -610,29 +610,16 @@ Avoids an error on systems without aspell/hunspell/ispell."
 (use-package agent-shell
   :straight t
   :config
-  (setq agent-shell-anthropic-authentication
-        (agent-shell-anthropic-make-authentication :login t))
-  (setq agent-shell-anthropic-default-session-mode-id "auto")
-  ;; Display a freshly started shell immediately.  The default `prompt'
-  ;; session strategy defers showing the buffer until a session is chosen,
-  ;; so the first invocation after killing a shell looks like nothing
-  ;; happened (`latest' would instead auto-resume the previous session).
-  (setq agent-shell-session-strategy 'prompt)
+  ;; Start with an empty prompt buffer: don't auto-insert DWIM context
+  ;; (current file/region/error/line) from the source buffer.
+  (setq agent-shell-context-sources nil)
   ;; Side window at the frame edge: stays at the far right even when the Lean
   ;; infoview (a normal window in the main area) is open, giving
   ;; [code | infoview | shell].
   (setq agent-shell-display-action
         '(display-buffer-in-side-window
           (side . right)
-          (window-width . 0.3)))
-  (defun my/agent-shell-toggle-or-start ()
-    "Toggle the agent shell, starting a new claude-code one if none exists."
-    (interactive)
-    (if (or (agent-shell--current-shell)
-            (agent-shell-project-buffers)
-            (agent-shell-buffers))
-        (agent-shell-toggle)
-      (agent-shell-anthropic-start-claude-code))))
+          (window-width . 0.3))))
 
 ;;;; eldoc
 (use-package eldoc
@@ -1131,7 +1118,7 @@ when it holds a Lean buffer, render DOCS in the *lean-infoview* window
 
 ;;;;; ai
 (spc-leader-def
-  "ai" 'my/agent-shell-toggle-or-start)
+  "ai" 'agent-shell)
 
 ;;;;; editor
 (spc-leader-def
