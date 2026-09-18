@@ -150,11 +150,7 @@
   :demand t
   :config
   (setq yascroll-scroll-bar '(child-frame text-area))
-  (setq yascroll-delay-to-hide nil)
-  ;; Thumb color is derived from the active theme in yascroll.el
-  ;; (`default' bg blended toward fg by `yascroll-thumb-blend'), so it
-  ;; follows theme changes automatically -- no hardcoded color here.
-  (global-yascroll-bar-mode 1))
+  (setq yascroll-delay-to-hide nil))
 
 ;;;; minimap
 ;; Local child-frame minimap (lisp/minimap-frame.el).  Floats over the
