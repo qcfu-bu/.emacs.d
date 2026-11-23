@@ -615,7 +615,7 @@ Avoids an error on systems without aspell/hunspell/ispell."
   (setq agent-shell-display-action
         '(display-buffer-in-side-window
           (side . right)
-          (window-width . 0.3))))
+          (window-width . 0.4))))
 
 ;;;; eldoc
 (use-package eldoc
