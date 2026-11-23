@@ -89,8 +89,13 @@
 
 ;;;; theme
 (use-package modus-themes
+  :straight t)
+
+(use-package auto-dark
   :straight t
-  :config (load-theme 'modus-operandi t))
+  :config
+  (setq auto-dark-themes '((modus-vivendi) (modus-operandi))) ; (dark-theme light-theme)
+  (auto-dark-mode 1))
 
 ;;;; modeline
 (use-package doom-modeline
@@ -954,7 +959,7 @@ when it holds a Lean buffer, render DOCS in the *lean-infoview* window
                '("\\`\\*lean-infoview\\*\\'"
                  (display-buffer-reuse-window display-buffer-in-direction)
                  (direction . right)
-                 (window-width . 0.3)
+                 (window-width . 0.5)
                  (preserve-size . (t . nil))
                  (dedicated . t)
                  (window-parameters . ((no-delete-other-windows . t)))))
