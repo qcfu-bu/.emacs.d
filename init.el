@@ -88,14 +88,9 @@
     (set-face-attribute face nil :font "JetBrains Mono:pixelsize=14")))
 
 ;;;; theme
-(use-package doom-themes
+(use-package modus-themes
   :straight t
-  :config (load-theme 'doom-one t))
-
-(use-package solaire-mode
-  :straight t
-  :config 
-  (solaire-global-mode t))
+  :config (load-theme 'modus-operandi t))
 
 ;;;; modeline
 (use-package doom-modeline
@@ -780,8 +775,8 @@ Avoids an error on systems without aspell/hunspell/ispell."
         TeX-auto-local ".auctex-auto"
         TeX-style-local ".auctex-style"
         TeX-view-program-list '(("Skim" "/Applications/Skim.app/Contents/SharedSupport/displayline -g -b %n %o %b"))
-        TeX-view-program-selection '((output-pdf "Skim"))
-        ;; TeX-view-program-selection '((output-pdf "PDF Tools"))
+        ;; TeX-view-program-selection '((output-pdf "Skim"))
+        TeX-view-program-selection '((output-pdf "PDF Tools"))
         TeX-source-correlate-mode t
         TeX-source-correlate-method 'synctex
         TeX-electric-math '("$" . "$")

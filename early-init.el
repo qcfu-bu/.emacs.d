@@ -99,3 +99,4 @@
 ;; Using `fundamental-mode' for the initial buffer to avoid unnecessary
 ;; startup overhead.
 (setq initial-major-mode 'fundamental-mode)
+(setq warning-inhibit-types '((files missing-lexbind-cookie)))
