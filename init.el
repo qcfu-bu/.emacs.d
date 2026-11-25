@@ -651,6 +651,13 @@ Avoids an error on systems without aspell/hunspell/ispell."
     (add-hook 'before-save-hook #'eglot-format-buffer nil t))
   :config
   (setq eglot-ignored-server-capabilities '(:inlayHintProvider))
+  ;; Emacs 31's flymake refuses to run any backend in a buffer that is not
+  ;; `trusted-content-p' ("Disabling eglot-flymake-backend ... (untrusted
+  ;; content)" in *Flymake log*), which silently drops all LSP diagnostics.
+  ;; The eglot backend only relays what the already-running server reports and
+  ;; evaluates nothing from the buffer, so exempt it instead of widening
+  ;; `trusted-content'.
+  (function-put 'eglot-flymake-backend 'flymake-always-safe t)
   (advice-add 'eglot-completion-at-point :around #'cape-wrap-buster)
   (add-to-list 'eglot-server-programs '((tex-mode context-mode texinfo-mode bibtex-mode) . ("texlab")))
   (add-to-list 'eglot-server-programs '((python-mode python-ts-mode) . ("pyright-langserver" "--stdio")))
