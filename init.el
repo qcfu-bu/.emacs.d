@@ -905,6 +905,12 @@ Avoids an error on systems without aspell/hunspell/ispell."
   :config
   (nael-infoview-mode 1))
 
+;; Lake / server commands (lisp/nael-lake.el): restart file or server, lake
+;; build/update/clean/cache get in a compilation buffer.  Keys: `SPC m r/R/l'.
+(use-package nael-lake
+  :commands (nael-restart-file nael-restart-server nael-lake nael-lake-build
+             nael-lake-update nael-lake-clean nael-lake-cache-get))
+
 ;;;; why3
 (use-package why3
   :load-path "~/.opam/default/share/emacs/site-lisp"
@@ -1214,7 +1220,15 @@ Avoids an error on systems without aspell/hunspell/ispell."
 (spc-local-leader-def
   :keymaps 'nael-mode-map
   "i" 'nael-infoview-toggle
-  "h" 'eldoc-doc-buffer)
+  "h" 'eldoc-doc-buffer
+  "r" 'nael-restart-file
+  "R" 'nael-restart-server
+  "l" '(:ignore t :which-key "+lake")
+  "lb" 'nael-lake-build
+  "lu" 'nael-lake-update
+  "lc" 'nael-lake-clean
+  "lg" 'nael-lake-cache-get
+  "ll" 'nael-lake)
 (spc-local-leader-def
   :keymaps 'nael-infoview-buffer-mode-map
   "i" 'nael-infoview-toggle)

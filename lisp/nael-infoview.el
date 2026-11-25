@@ -12,8 +12,9 @@
 ;;   Foo.lean:12:4  Processing…
 ;;   Tactic state      goals from `$/lean/plainGoal', or "No goals"
 ;;   Expected type     from `$/lean/plainTermGoal'
+;;   Building          lake's latest progress line while imports build
 ;;   Messages          diagnostics (errors, warnings, #eval output, ...)
-;;                     on the cursor line, read from Flymake
+;;                     whose range covers the cursor line
 ;;
 ;; It is independent of ElDoc.  Goals are requested directly over Eglot's
 ;; JSON-RPC connection, and refreshes are driven explicitly:
@@ -22,6 +23,8 @@
 ;; - `$/lean/fileProgress': refetch when Lean finishes elaborating up to the
 ;;   cursor, and show a "Processing…" indicator meanwhile;
 ;; - `textDocument/publishDiagnostics': re-render the messages section;
+;;   lake's output while building imports arrives this way too (see
+;;   `nael-infoview--build-progress-p');
 ;; - selecting another Lean window.
 ;;
 ;; Replies to superseded requests are dropped, so a slow answer for an old
@@ -140,6 +143,19 @@ One of nil, `check' (refetch only if the position or text changed),
 
 (defvar-local nael-infoview--processing nil
   "Latest `processing' ranges from `$/lean/fileProgress' for this buffer.")
+
+(defvar-local nael-infoview--lsp-diagnostics nil
+  "Latest raw LSP diagnostics published for this buffer, minus build output.")
+
+(defvar-local nael-infoview--build-status nil
+  "Latest lake output line of the current or last import build, or nil.
+Each line replaces the previous one, like VS Code's infoview.  Lean clears
+its build diagnostic the moment the build ends, often before the infoview
+could draw it, so the last line is kept until Lean has finished processing
+the file (or a new build starts).")
+
+(defvar-local nael-infoview--build-done nil
+  "Non-nil once the build in `nael-infoview--build-status' has ended.")
 
 ;;;; Infoview buffer
 
@@ -313,13 +329,6 @@ have answered, unless a newer fetch has started in the meantime."
                       line))
                 nael-infoview--processing))))
 
-(defun nael-infoview--source-buffer-p (server uri)
-  "Non-nil when URI, as known to SERVER, is the infoview's source buffer."
-  (when-let* ((buffer nael-infoview--source-buffer)
-              ((buffer-live-p buffer))
-              (path (ignore-errors (expand-file-name (eglot-uri-to-path uri)))))
-    (eq buffer (eglot--find-buffer-visiting server path))))
-
 (cl-defmethod eglot-handle-notification
   (server (_method (eql $/lean/fileProgress))
           &key textDocument processing &allow-other-keys)
@@ -328,7 +337,13 @@ have answered, unless a newer fetch has started in the meantime."
               (path (ignore-errors (expand-file-name (eglot-uri-to-path uri))))
               (buffer (eglot--find-buffer-visiting server path)))
     (with-current-buffer buffer
-      (setq nael-infoview--processing processing))
+      (setq nael-infoview--processing processing)
+      ;; File fully processed: the finished build's log has served its turn.
+      (when (and nael-infoview--build-done (seq-empty-p processing))
+        (setq nael-infoview--build-status nil
+              nael-infoview--build-done nil)
+        (when (eq buffer nael-infoview--source-buffer)
+          (nael-infoview--schedule 'render))))
     (when-let* (((bound-and-true-p nael-infoview-mode))
                 ((eq buffer nael-infoview--source-buffer))
                 (source (nael-infoview--source)))
@@ -341,14 +356,53 @@ have answered, unless a newer fetch has started in the meantime."
          ;; Just update the "Processing…" indicator.
          ((not (eq was-busy busy)) (nael-infoview--schedule 'render)))))))
 
+(defun nael-infoview--build-progress-p (diags)
+  "Non-nil when DIAGS is Lean's report of one line of lake output.
+While `lake setup-file' builds the imports, the file worker publishes
+each stderr line as the sole diagnostic: severity information, `range'
+on the first line and a `fullRange' spanning the file (Lean's
+FileWorker.lean, `setupImports').
+
+The stale-dependency notice (\"Imports are out of date…\", from
+`handleStaleDependency') has exactly the same shape but is a sticky
+message that Lean re-publishes with every diagnostics update, so it is
+excluded and shown as an ordinary message instead."
+  (and (= (length diags) 1)
+       (let* ((d (aref diags 0))
+              (start (plist-get (plist-get d :range) :start))
+              (end (plist-get (plist-get d :range) :end)))
+         (and (eql (plist-get d :severity) 3)
+              (plist-get d :fullRange)
+              (not (string-prefix-p "Imports are out of date"
+                                    (plist-get d :message)))
+              (eql (plist-get start :line) 0)
+              (eql (plist-get start :character) 0)
+              (eql (plist-get end :line) 1)
+              (eql (plist-get end :character) 0)))))
+
 (cl-defmethod eglot-handle-notification :after
   (server (_method (eql textDocument/publishDiagnostics))
-          &key uri &allow-other-keys)
-  "Re-render the infoview's messages when its source file gets diagnostics."
-  (when (and nael-infoview-mode
-             (nael-infoview--visible-p)
-             (nael-infoview--source-buffer-p server uri))
-    (nael-infoview--schedule 'render)))
+          &key uri diagnostics &allow-other-keys)
+  "Record Lean's diagnostics and lake output; re-render the infoview."
+  (when-let* ((path (ignore-errors (expand-file-name (eglot-uri-to-path uri))))
+              (buffer (eglot--find-buffer-visiting server path))
+              ((with-current-buffer buffer (derived-mode-p 'nael-mode))))
+    (with-current-buffer buffer
+      (if (nael-infoview--build-progress-p diagnostics)
+          (let ((line (string-trim-right
+                       (plist-get (aref diagnostics 0) :message))))
+            (setq nael-infoview--lsp-diagnostics nil
+                  nael-infoview--build-status line
+                  nael-infoview--build-done nil))
+        ;; Lean re-appends its sticky stale-dependency notice each time a
+        ;; dependency changes, so identical messages can repeat.
+        (setq nael-infoview--lsp-diagnostics (seq-uniq diagnostics))
+        (when nael-infoview--build-status
+          (setq nael-infoview--build-done t))))
+    (when (and nael-infoview-mode
+               (nael-infoview--visible-p)
+               (eq buffer nael-infoview--source-buffer))
+      (nael-infoview--schedule 'render))))
 
 ;;;; Rendering
 
@@ -365,31 +419,32 @@ have answered, unless a newer fetch has started in the meantime."
   (insert (propertize (concat title "\n") 'face 'nael-infoview-section)))
 
 (defun nael-infoview--diagnostic-kind (diag)
-  "Return (LABEL . FACE) describing the severity of Flymake DIAG."
-  (pcase (flymake-diagnostic-type diag)
-    ((or 'eglot-error :error) '("error" . error))
-    ((or 'eglot-warning :warning) '("warning" . warning))
+  "Return (LABEL . FACE) describing the severity of LSP DIAG."
+  (pcase (plist-get diag :severity)
+    (1 '("error" . error))
+    (2 '("warning" . warning))
     (_ '("info" . success))))
 
-(defun nael-infoview--diagnostic-message (diag)
-  "Return the message of Flymake DIAG.
-Prefer the raw LSP message: Flymake's text is prefixed with the source
-\(\"Lean 4: \")."
-  (string-trim-right
-   (or (plist-get (alist-get 'eglot-lsp-diag (flymake-diagnostic-data diag))
-                  :message)
-       (flymake-diagnostic-text diag))))
-
 (defun nael-infoview--diagnostics (buffer pos)
-  "Return Flymake diagnostics overlapping the line of POS in BUFFER."
+  "Return BUFFER's LSP diagnostics whose range covers the line of POS.
+Like VS Code's infoview, use Lean's `fullRange' (the whole extent of
+the message) when present, else the possibly trimmed `range'."
   (with-current-buffer buffer
-    (when (bound-and-true-p flymake-mode)
-      (save-excursion
-        (goto-char pos)
-        (sort (flymake-diagnostics (line-beginning-position)
-                                   (max (1+ (line-beginning-position))
-                                        (line-end-position)))
-              :key #'flymake-diagnostic-beg)))))
+    (let ((line (1- (line-number-at-pos pos t))))
+      (sort (seq-filter
+             (lambda (d)
+               (let ((r (or (plist-get d :fullRange) (plist-get d :range))))
+                 (<= (plist-get (plist-get r :start) :line)
+                     line
+                     (plist-get (plist-get r :end) :line))))
+             nael-infoview--lsp-diagnostics)
+            :key (lambda (d)
+                   (let ((start (plist-get (plist-get d :range) :start)))
+                     (cons (plist-get start :line)
+                           (plist-get start :character))))
+            :lessp (lambda (a b)
+                     (or (< (car a) (car b))
+                         (and (= (car a) (car b)) (< (cdr a) (cdr b)))))))))
 
 (defun nael-infoview--insert-contents (buffer pos)
   "Insert infoview contents for POS in BUFFER into the current buffer."
@@ -402,6 +457,8 @@ Prefer the raw LSP message: Flymake's text is prefixed with the source
          (term (and nael-infoview--term-goal
                     (plist-get nael-infoview--term-goal :goal)))
          (diags (nael-infoview--diagnostics buffer pos))
+         (build-status (buffer-local-value 'nael-infoview--build-status buffer))
+         (build-done (buffer-local-value 'nael-infoview--build-done buffer))
          (shown nil))
     ;; Header.
     (insert (propertize (format "%s:%d:%d" (buffer-name buffer) line col)
@@ -412,6 +469,14 @@ Prefer the raw LSP message: Flymake's text is prefixed with the source
     (unless connected
       (insert (propertize "Waiting for the Lean server…\n" 'face
                           'nael-infoview-dim)))
+    ;; Lake's latest progress line while the imports build.
+    (when build-status
+      (setq shown t)
+      (nael-infoview--insert-section
+       (if build-done "Built imports" "Building imports…"))
+      (insert (propertize (nael-infoview--indent build-status)
+                          'face 'nael-infoview-dim)
+              "\n\n"))
     ;; Tactic state: present only inside tactic blocks.
     (when goal
       (setq shown t)
@@ -438,18 +503,16 @@ Prefer the raw LSP message: Flymake's text is prefixed with the source
       (nael-infoview--insert-section (format "Messages (%d)" (length diags)))
       (dolist (diag diags)
         (pcase-let ((`(,label . ,face) (nael-infoview--diagnostic-kind diag))
-                    (beg (flymake-diagnostic-beg diag)))
+                    (start (plist-get (plist-get diag :range) :start)))
           (insert "  "
-                  (propertize
-                   (with-current-buffer buffer
-                     (format "%d:%d %s:"
-                             (line-number-at-pos beg t)
-                             (save-excursion (goto-char beg) (current-column))
-                             label))
-                   'face face)
+                  (propertize (format "%d:%d %s:"
+                                      (1+ (plist-get start :line))
+                                      (plist-get start :character)
+                                      label)
+                              'face face)
                   "\n"
                   (replace-regexp-in-string
-                   "^" "    " (nael-infoview--diagnostic-message diag))
+                   "^" "    " (string-trim-right (plist-get diag :message)))
                   "\n\n"))))
     (when (and connected (not shown))
       (insert (propertize "No info found at this position.\n"
