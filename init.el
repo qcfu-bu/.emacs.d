@@ -455,6 +455,13 @@ Avoids an error on systems without aspell/hunspell/ispell."
 (use-package popper
   :straight t
   :config
+  ;; Ghostel terminals are popups, except "here" terminals from
+  ;; `ghostel-toggle-here'.  Written so as not to load ghostel-toggle:
+  ;; popper calls it on every buffer display.
+  (defun my/ghostel-popup-buffer-p (buffer)
+    (with-current-buffer buffer
+      (and (derived-mode-p 'ghostel-mode)
+           (not (bound-and-true-p ghostel-toggle-here-p)))))
   (setq popper-window-height 20)
   (setq popper-reference-buffers
         '("\\*Messages\\*"
@@ -467,7 +474,7 @@ Avoids an error on systems without aspell/hunspell/ispell."
           "^\\*xref\\*$"
           "^\\*Org Select\\*$"
           "^\\*TeX Help\\*$"
-          "^\\*ghostel"
+          my/ghostel-popup-buffer-p
           "^\\*utop\\*$"
           "^\\*cargo-test\\*$"
           "^\\*haskell\\*$"
@@ -703,24 +710,18 @@ Avoids an error on systems without aspell/hunspell/ispell."
   :hook
   ((ghostel-mode . (lambda () (setq confirm-kill-processes nil))))
   :config
-  ;; Terminals are named per-project by `ghostel-toggle-buffer-name-by-project'
-  ;; (wired up in lisp/ghostel-toggle.el).
   (setq ghostel-kill-buffer-on-exit t
         ghostel-max-scrollback 5000))
 
 ;;;; ghostel-toggle
-;; Local port of vterm-toggle (lisp/ghostel-toggle.el) replacing the old
-;; hand-rolled popup.  Window placement is delegated to display-buffer, so it
-;; reuses the popper rule for "*ghostel*".
+;; Per-project popup terminals and "terminal here" (lisp/ghostel-toggle.el).
+;; Popups are placed by popper (`my/ghostel-popup-buffer-p').  Keys: `C-`',
+;; `SPC o t' (toggle; C-u also cds) and `SPC o T' (here).
 (use-package ghostel-toggle
-  :commands (ghostel-toggle ghostel-toggle-cd
-             ghostel-toggle-forward ghostel-toggle-backward)
+  :commands (ghostel-toggle ghostel-toggle-here)
   :bind ("C-`" . ghostel-toggle)
   :config
-  ;; Per-project scoping: one terminal per project, reused on toggle, with
-  ;; project-aware show/hide.  All the logic lives in ghostel-toggle.el; this
-  ;; single switch is the whole API (it overrides `ghostel-toggle-scope').
-  (setq ghostel-toggle-scoped t))
+  (setq ghostel-buffer-name-function #'ghostel-toggle-buffer-name))
 
 ;;; lang
 ;;;; treesit
@@ -1134,6 +1135,14 @@ Avoids an error on systems without aspell/hunspell/ispell."
   "tr" 'treemacs
   "tl" 'display-line-numbers-mode
   "tc" 'olivetti-mode)
+
+;;;;; open
+;; Doom-style: `SPC o t' toggles the popup terminal, `SPC o T' opens a new
+;; terminal in the current window as an ordinary buffer.
+(spc-leader-def
+  "o" '(:ignore t :which-key "open")
+  "ot" 'ghostel-toggle
+  "oT" 'ghostel-toggle-here)
 
 ;;;;; git
 (spc-leader-def
