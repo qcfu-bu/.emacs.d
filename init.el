@@ -876,40 +876,16 @@ Avoids an error on systems without aspell/hunspell/ispell."
   :hook
   (nael-mode . eglot-ensure)
   (nael-mode . abbrev-mode)
-  (nael-mode . (lambda () (copilot-mode -1)))
-  :config
-  ;; Lean answers `textDocument/semanticTokens/full' with tokens only for the
-  ;; part of the file elaborated so far, then sends
-  ;; `workspace/semanticTokens/refresh' until it is done (see Lean's
-  ;; Server/ProtocolOverview.lean).  Emacs 31's eglot deliberately ignores
-  ;; refresh, so the first, near-empty response stays cached until the buffer
-  ;; is edited: no semantic highlighting after opening a file.  Honor refresh
-  ;; in nael buffers by invalidating the cached docver, which makes the next
-  ;; font-lock pass re-request tokens (as delta when the server supports it).
-  (with-eval-after-load 'eglot
-    (cl-defmethod eglot-handle-request :after
-      (server (_method (eql workspace/semanticTokens/refresh)) &rest _)
-      (dolist (buf (eglot--managed-buffers server))
-        (when (buffer-live-p buf)
-          (with-current-buffer buf
-            (when (and (derived-mode-p 'nael-mode)
-                       (bound-and-true-p eglot-semantic-tokens-mode))
-              (setf (plist-get eglot--semtok-state :docver) nil)
-              (save-restriction (widen) (font-lock-flush)))))))))
+  (nael-mode . (lambda () (copilot-mode -1))))
 
-;; VS Code-style Lean infoview (lisp/nael-infoview.el): goals, expected type
-;; and messages at point in a window right of the Lean window.  Opens when the
-;; Lean server connects, otherwise only via `nael-infoview-toggle'.
-(use-package nael-infoview
+;; Local extensions (lisp/nael-extras/): VS Code-style infoview (opens when
+;; the Lean server connects), Lake commands, restart file/server, and a fix
+;; for Eglot's semantic tokens with Lean.  Keys: `SPC m i/r/R/l'.
+(use-package nael-extras
+  :load-path "lisp/nael-extras"
   :after nael
   :config
-  (nael-infoview-mode 1))
-
-;; Lake / server commands (lisp/nael-lake.el): restart file or server, lake
-;; build/update/clean/cache get in a compilation buffer.  Keys: `SPC m r/R/l'.
-(use-package nael-lake
-  :commands (nael-restart-file nael-restart-server nael-lake nael-lake-build
-             nael-lake-update nael-lake-clean nael-lake-cache-get))
+  (nael-extras-mode 1))
 
 ;;;; why3
 (use-package why3
@@ -1221,8 +1197,8 @@ Avoids an error on systems without aspell/hunspell/ispell."
   :keymaps 'nael-mode-map
   "i" 'nael-infoview-toggle
   "h" 'eldoc-doc-buffer
-  "r" 'nael-restart-file
-  "R" 'nael-restart-server
+  "r" 'nael-extras-restart-file
+  "R" 'nael-extras-restart-server
   "l" '(:ignore t :which-key "+lake")
   "lb" 'nael-lake-build
   "lu" 'nael-lake-update

@@ -1,7 +1,6 @@
 ;;; nael-infoview.el --- VS Code-style Lean infoview for nael + Eglot  -*- lexical-binding: t; -*-
 
-;; Package-Requires: ((emacs "31.1") (nael "0") (eglot "1.17"))
-;; Keywords: languages, lean
+;; Part of nael-extras; see nael-extras.el.
 
 ;;; Commentary:
 ;;
@@ -40,11 +39,7 @@
 ;; `nael-infoview-toggle' / `nael-infoview-open' / `nael-infoview-close'.
 ;; Cursor movement never opens it, and `q' does not close it.
 ;;
-;; Usage:
-;;
-;;   (use-package nael-infoview
-;;     :after nael
-;;     :config (nael-infoview-mode 1))
+;; Enabled by `nael-extras-mode'; can also be toggled on its own.
 
 ;;; Code:
 
@@ -59,7 +54,7 @@
 
 (defgroup nael-infoview nil
   "VS Code-style Lean infoview for `nael-mode'."
-  :group 'nael
+  :group 'nael-extras
   :prefix "nael-infoview-")
 
 (defcustom nael-infoview-buffer-name "*lean-infoview*"
