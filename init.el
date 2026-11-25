@@ -876,106 +876,34 @@ Avoids an error on systems without aspell/hunspell/ispell."
   :hook
   (nael-mode . eglot-ensure)
   (nael-mode . abbrev-mode)
-  (nael-mode . nael-infoview-setup)
   (nael-mode . (lambda () (copilot-mode -1)))
   :config
-  ;; Lean "infoview": nael renders proof goals through ElDoc.  Render them into
-  ;; our own *lean-infoview* buffer (which popper does not match) and lock it to
-  ;; a window on the right, like Proof General's goals panel, so it stays
-  ;; independent of popper and coexists with popups such as the terminal.
-  ;;
-  ;; ElDoc dispatches its display from an async timer where `current-buffer' is
-  ;; not the Lean buffer, which defeats buffer-local hooks and source-buffer
-  ;; routing.  The *selected window*, however, still shows the Lean buffer, so
-  ;; we advise `eldoc-display-in-buffer' (what actually renders the docs) and,
-  ;; whenever the selected window holds a Lean buffer, redirect everything
-  ;; (goals, term goals, hover/expected-type) to the infoview; otherwise the
-  ;; original runs unchanged for other modes.
-  (defconst nael-infoview-buffer-name "*lean-infoview*"
-    "Name of the dedicated Lean infoview buffer.")
+  ;; Lean answers `textDocument/semanticTokens/full' with tokens only for the
+  ;; part of the file elaborated so far, then sends
+  ;; `workspace/semanticTokens/refresh' until it is done (see Lean's
+  ;; Server/ProtocolOverview.lean).  Emacs 31's eglot deliberately ignores
+  ;; refresh, so the first, near-empty response stays cached until the buffer
+  ;; is edited: no semantic highlighting after opening a file.  Honor refresh
+  ;; in nael buffers by invalidating the cached docver, which makes the next
+  ;; font-lock pass re-request tokens (as delta when the server supports it).
+  (with-eval-after-load 'eglot
+    (cl-defmethod eglot-handle-request :after
+      (server (_method (eql workspace/semanticTokens/refresh)) &rest _)
+      (dolist (buf (eglot--managed-buffers server))
+        (when (buffer-live-p buf)
+          (with-current-buffer buf
+            (when (and (derived-mode-p 'nael-mode)
+                       (bound-and-true-p eglot-semantic-tokens-mode))
+              (setf (plist-get eglot--semtok-state :docver) nil)
+              (save-restriction (widen) (font-lock-flush)))))))))
 
-  (defun nael-infoview--buffer ()
-    "Return the infoview buffer, creating it in `special-mode' if needed."
-    (let ((buffer (get-buffer-create nael-infoview-buffer-name)))
-      (with-current-buffer buffer
-        (unless (derived-mode-p 'special-mode) (special-mode)))
-      buffer))
-
-  (defun nael-infoview--render (docs)
-    "Render ElDoc DOCS into the infoview buffer; return the buffer.
-Each element of DOCS is a (STRING . PLIST) pair; the strings are already
-fontified by nael."
-    (let ((buffer (nael-infoview--buffer)))
-      (with-current-buffer buffer
-        (let ((inhibit-read-only t))
-          (setq-local nobreak-char-display nil)
-          (erase-buffer)
-          (cl-loop for (item . rest) on docs
-                   do (insert (car item))
-                   when rest do (insert "\n\n"))
-          (goto-char (point-min))))
-      buffer))
-
-  (defun nael-infoview-show (&optional window)
-    "Pop up the Lean infoview to the right of WINDOW without changing its contents.
-WINDOW defaults to the selected window; it anchors the
-`display-buffer-in-direction' split (see `display-buffer-alist' below)."
-    (interactive)
-    (display-buffer (nael-infoview--buffer)
-                    (and window `(nil (window . ,window)))))
-
-  (defun nael--in-lean-window-p ()
-    "Non-nil when the selected window is showing a Lean buffer."
-    (with-current-buffer (window-buffer (selected-window))
-      (derived-mode-p 'nael-mode)))
-
-  (defun nael-eldoc-display-advice (orig-fn docs &rest args)
-    "Redirect ElDoc rendering to the Lean infoview when editing a Lean buffer.
-ORIG-FN is `eldoc-display-in-buffer'.  ElDoc renders asynchronously, but the
-selected window still shows the Lean buffer at that point, so we key off it:
-when it holds a Lean buffer, render DOCS in the *lean-infoview* window
-\(re-showing it if hidden); otherwise call ORIG-FN unchanged."
-    (if (nael--in-lean-window-p)
-        (let ((buffer (nael-infoview--render docs)))
-          (unless (get-buffer-window buffer t)
-            (display-buffer buffer)))
-      (apply orig-fn docs args)))
-  (advice-add 'eldoc-display-in-buffer :around #'nael-eldoc-display-advice)
-
-  (defun nael-infoview-setup ()
-    "Pop up the Lean infoview when a Lean buffer is opened."
-    (let ((source (current-buffer)))
-      ;; Defer until after `find-file' has displayed the Lean buffer, so the
-      ;; side window is added to the right of it rather than fighting the
-      ;; in-progress file display.
-      (run-with-timer
-       0 nil
-       (lambda ()
-         ;; Anchor the split on the Lean buffer's window explicitly: by the
-         ;; time the timer fires the selected window may be elsewhere.
-         (when-let* (((buffer-live-p source))
-                     (window (get-buffer-window source t)))
-           (nael-infoview-show window))))))
-
-  ;; A normal window in the main area (not a side window): right-side side
-  ;; windows with different slots stack vertically, so sharing the side with
-  ;; agent-shell could never give [code | infoview | shell].  In-direction
-  ;; keeps the infoview glued to the right of the Lean window while
-  ;; agent-shell docks at the frame edge beyond it.
-  (add-to-list 'display-buffer-alist
-               '("\\`\\*lean-infoview\\*\\'"
-                 (display-buffer-reuse-window display-buffer-in-direction)
-                 (direction . right)
-                 (window-width . 0.5)
-                 (preserve-size . (t . nil))
-                 (dedicated . t)
-                 (window-parameters . ((no-delete-other-windows . t)))))
-
-  ;; In Lean buffers, `K' shows our infoview rather than the (now-unused)
-  ;; *eldoc* buffer.
-  (general-define-key
-   :states 'normal :keymaps 'nael-mode-map
-   "K" #'nael-infoview-show))
+;; VS Code-style Lean infoview (lisp/nael-infoview.el): goals, expected type
+;; and messages at point in a window right of the Lean window.  Opens when the
+;; Lean server connects, otherwise only via `nael-infoview-toggle'.
+(use-package nael-infoview
+  :after nael
+  :config
+  (nael-infoview-mode 1))
 
 ;;;; why3
 (use-package why3
@@ -1281,7 +1209,16 @@ when it holds a Lean buffer, render DOCS in the *lean-infoview* window
   "pr" 'proof-retract-buffer
   "pk" 'proof-shell-exit)
 
-;; ;;;;; lean4
+;;;;; lean4
+;; `K' stays `eldoc-doc-buffer' (hover plus Lean's custom LSP messages).
+(spc-local-leader-def
+  :keymaps 'nael-mode-map
+  "i" 'nael-infoview-toggle
+  "h" 'eldoc-doc-buffer)
+(spc-local-leader-def
+  :keymaps 'nael-infoview-buffer-mode-map
+  "i" 'nael-infoview-toggle)
+
 ;; (spc-local-leader-def
 ;;   :keymaps 'lean4-mode-map
 ;;   "b" 'lean4-lake-build
