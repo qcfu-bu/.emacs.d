@@ -877,7 +877,9 @@ Avoids an error on systems without aspell/hunspell/ispell."
   :hook
   (nael-mode . eglot-ensure)
   (nael-mode . abbrev-mode)
-  (nael-mode . (lambda () (copilot-mode -1))))
+  (nael-mode . (lambda ()
+                 (copilot-mode -1)
+                 (copilot-nes-mode -1))))
 
 ;; Local extensions (lisp/nael-extras/): VS Code-style infoview (opens when
 ;; the Lean server connects), Lake commands, restart file/server, and a fix
