@@ -467,6 +467,8 @@ Avoids an error on systems without aspell/hunspell/ispell."
         '("\\*Messages\\*"
           "\\*Warnings\\*"
           "\\*compilation\\*" compilation-mode
+          ;; popper matches modes exactly, not derived ones.
+          nael-lake-compilation-mode
           "\\*grep\\*"
           "Output\\*$"
           "\\*Async Shell Command\\*"
