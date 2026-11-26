@@ -736,22 +736,15 @@ Avoids an error on systems without aspell/hunspell/ispell."
   (global-treesit-auto-mode))
 
 ;;;; markdown
-(use-package markdown-mode
+(use-package markdown-ts-mode
   :straight t
-  :mode ("/README\\(?:\\.md\\)?\\'" . gfm-mode)
   :hook
-  ((markdown-mode . visual-line-mode)
-   (markdown-mode . flyspell-mode-maybe))
-  :init
-  (setq markdown-enable-math t
-        markdown-enable-wiki-links t
-        markdown-italic-underscore t
-        markdown-asymmetric-header t
-        markdown-gfm-additional-languages '("sh")
-        markdown-make-gfm-checkboxes-buttons t
-        markdown-fontify-whole-heading-line t
-        markdown-fontify-code-blocks-natively t
-        markdown-command "multimarkdown"))
+  ((markdown-ts-mode . visual-line-mode)
+   (markdown-ts-mode . flyspell-mode-maybe)))
+
+(use-package markdown-ts-appear
+  :straight t
+  :hook (markdown-ts-mode . markdown-ts-appear-mode))
 
 ;;;; org
 (use-package org
