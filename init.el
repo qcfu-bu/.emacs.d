@@ -89,7 +89,17 @@
 
 ;;;; theme
 (use-package modus-themes
-  :straight t)
+  :straight t
+  :init
+  ;; Scale headings (Org, Markdown, ...).  modus maps e.g.
+  ;; `markdown-ts-heading-N' to `modus-themes-heading-N', which have no
+  ;; height unless set here.  Set before auto-dark loads the theme.
+  (setq modus-themes-headings
+        '((0 . (1.6))
+          (1 . (1.4))
+          (2 . (1.25))
+          (3 . (1.15))
+          (t . (1.05)))))
 
 (use-package auto-dark
   :straight t
@@ -736,8 +746,12 @@ Avoids an error on systems without aspell/hunspell/ispell."
   (global-treesit-auto-mode))
 
 ;;;; markdown
+;; Built-in on Emacs 31, which `markdown-ts-appear' is written for; the MELPA
+;; package of the same name is an older, unrelated mode that would shadow it.
+;; It has no autoload, and treesit-auto only remaps .md files to it once
+;; `markdown-ts-mode' is defined; `:commands' provides the autoload.
 (use-package markdown-ts-mode
-  :straight t
+  :commands markdown-ts-mode
   :hook
   ((markdown-ts-mode . visual-line-mode)
    (markdown-ts-mode . flyspell-mode-maybe)))
