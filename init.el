@@ -95,10 +95,10 @@
   ;; `markdown-ts-heading-N' to `modus-themes-heading-N', which have no
   ;; height unless set here.  Set before auto-dark loads the theme.
   (setq modus-themes-headings
-        '((0 . (1.6))
-          (1 . (1.4))
-          (2 . (1.25))
-          (3 . (1.15))
+        '((0 . (1.4))
+          (1 . (1.3))
+          (2 . (1.2))
+          (3 . (1.1))
           (t . (1.05)))))
 
 (use-package auto-dark
