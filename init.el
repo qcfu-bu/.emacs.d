@@ -587,7 +587,9 @@ Avoids an error on systems without aspell/hunspell/ispell."
   :defer t
   :config
   (setq magit-bury-buffer-function 'magit-restore-window-configuration
-        magit-display-buffer-function #'magit-display-buffer-fullframe-status-v1))
+        ;; Open in the selected window; diffs (e.g. while committing) and the
+        ;; process buffer go to another window.
+        magit-display-buffer-function #'magit-display-buffer-same-window-except-diff-v1))
 
 (use-package diff-hl
   :straight t
