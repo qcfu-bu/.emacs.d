@@ -99,7 +99,15 @@
           (1 . (1.3))
           (2 . (1.2))
           (3 . (1.1))
-          (t . (1.05)))))
+          (t . (1.05))))
+  ;; Dark grey instead of black: the main background takes the fringe's
+  ;; #1e1e1e; fringe and line numbers follow it, and `bg-dim' (code blocks,
+  ;; etc.) moves a step lighter so it still stands out.
+  (setq modus-vivendi-palette-overrides
+        '((bg-main "#1e1e1e")
+          (bg-dim "#2a2a2a")
+          (fringe bg-main)
+          (bg-line-number-inactive bg-main))))
 
 (use-package auto-dark
   :straight t
