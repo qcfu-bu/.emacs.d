@@ -638,6 +638,7 @@ Avoids an error on systems without aspell/hunspell/ispell."
   ;; Start with an empty prompt buffer: don't auto-insert DWIM context
   ;; (current file/region/error/line) from the source buffer.
   (setq agent-shell-context-sources nil)
+  (setq agent-shell-session-restore-verbosity 'full)
   ;; Side window at the frame edge: stays at the far right even when the Lean
   ;; infoview (a normal window in the main area) is open, giving
   ;; [code | infoview | shell].
@@ -645,6 +646,10 @@ Avoids an error on systems without aspell/hunspell/ispell."
         '(display-buffer-in-side-window
           (side . right)
           (window-width . 0.4))))
+
+(use-package agent-shell-claude-extras
+  :after agent-shell
+  :hook (agent-shell-mode . agent-shell-claude-extras-mode))
 
 ;;;; eldoc
 (use-package eldoc
